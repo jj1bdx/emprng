@@ -25,3 +25,8 @@
 
 * A master module `emprng` will accept the `random`-compatible entry functions
 * Each PRNG algorithm has one or more individual Erlang modules
+
+## License
+
+Apache License 2.0 (individual PRNG may have less restrictive licenses)
+
