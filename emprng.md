@@ -4,7 +4,7 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 
 ## Data Types
 
-```
+```erlang
 % This depends on the algorithm handler module
 -type emprng_seed() :: any().
 % This is the module name or atom keyword of the algorithm handler module
@@ -27,7 +27,7 @@ The default algorithm handler is `emprng_as183`.
 
 ## Exports
 
-```
+```erlang
 % seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 % in the process dictionary, and returns the old state.
 % (compatible with the random module)
@@ -63,7 +63,7 @@ The default algorithm handler is `emprng_as183`.
 % Note: the type of the values depends on the algorithm handler.
 % (new function)
 
--spec seed(X :: emprng_seed(), Alg: emprng_alg()) ->
+-spec seed(X :: emprng_seed(), Alg :: emprng_alg()) ->
       undefined | emprng_state().
 
 %%% TBD: uniform/0, uniform/1, uniform_s/1, uniform_s/2
