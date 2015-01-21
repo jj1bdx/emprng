@@ -66,9 +66,37 @@ The default algorithm handler is `emprng_as183`.
 -spec seed(X :: emprng_seed(), Alg :: emprng_alg()) ->
       undefined | emprng_state().
 
-%%% TBD: uniform/0, uniform/1, uniform_s/1, uniform_s/2
-%%% (They are expected to be semantically compatible with the random module,
-%%%  i.e., the uniformity and return value ranges will not change)
+%%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
+%%% uniformly distributed random numbers.
+%%% (They are expected to be semantically compatible with OTP random module,
+%%%  i.e., the uniformity and return value ranges will not change.)
+
+% uniform/0: returns a random float X where 0.0 < X < 1.0,
+% updating the state in the process dictionary.
+% (See OTP random module.)
+
+-spec uniform() -> float().
+
+% uniform/1: given an integer N >= 1,
+% uniform/1 returns a random integer X where 1 =< X =< N,
+% updating the state in the process dictionary.
+
+-spec uniform(N :: pos_integer()) -> pos_integer().
+
+% uniform_s/1: given a state, uniform_s/1
+% returns a random float X where 0.0 < X < 1.0,
+% and a new state.
+% (See OTP random module.)
+
+-spec uniform_s(S :: emprng_state()) -> {float(), NewS :: emprng_state()}.
+
+% uniform_s/2: given an integer N >= 1 and a state, uniform_s/2
+% uniform_s/2 returns a random integer X where 1 =< X =< N,
+% and a new state.
+
+-spec uniform_s(N :: pos_integer(), S :: emprng_state()) ->
+      {pos_integer(), NewS :: emprng_state()}.
+
 
 %%% Note: if a process calls uniform/0 or uniform/1 without setting a seed first,
 %%%       seed/0 is called automatically.
