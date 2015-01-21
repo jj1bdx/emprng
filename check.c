@@ -9,7 +9,10 @@
 
 int main(int argc, char *argv[]) {
     uint32_t x, y, z;
-    uint64_t s;
+    uint64_t s, v1, v2;
+
+    v1 = MULT; // one
+    v2 = MULT + MULT; // two
 
     for (x = 1; x < PRIME1; x++) {
         printf("x = %d\n", x);
@@ -18,7 +21,7 @@ int main(int argc, char *argv[]) {
                 s = (((uint64_t)x * (uint64_t)PRIME2 * (uint64_t)PRIME3) +
                      ((uint64_t)y * (uint64_t)PRIME3 * (uint64_t)PRIME1) +
                      ((uint64_t)z * (uint64_t)PRIME1 * (uint64_t)PRIME2));
-                if (s % MULT == 0) {
+                if ((s == v1) || (s == v2)) {
                     printf("x = %d, y = %d, z = %d, s = %" PRIu64 "\n", x, y, z, s);
                 }
             }
