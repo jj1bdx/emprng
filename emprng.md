@@ -56,14 +56,14 @@ The default algorithm handler is `emprng_as183`.
 % seed0/1: returns the default state for the given algorithm handler.
 % (new function)
 
--spec seed0(emprng_alg()) -> emprng_state().
+-spec seed0(emprng_alg_handler()) -> emprng_state().
 
 % seed/2: seeds RNG with the given values and algorithm handler
 % in the process dictionary, and returns the old state.
 % Note: the type of the values depends on the algorithm handler.
 % (new function)
 
--spec seed(X :: emprng_seed(), Alg :: emprng_alg()) ->
+-spec seed(X :: emprng_seed(), Alg :: emprng_alg_handler()) ->
       undefined | emprng_state().
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
