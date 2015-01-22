@@ -63,7 +63,7 @@ The default algorithm handler is `emprng_as183`.
 % Note: the type of the values depends on the algorithm handler.
 % (new function)
 
--spec seed(X :: emprng_seed(), Alg :: emprng_alg_handler()) ->
+-spec seed(X :: emprng_alg_state(), Alg :: emprng_alg_handler()) ->
       undefined | emprng_state().
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
