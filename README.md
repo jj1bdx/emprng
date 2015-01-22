@@ -4,7 +4,7 @@
 
 * Provide a substitute of Erlang/OTP `random` module
 * Maintain full backward compatibility
-* Extendable (= accepting arbitraty algorithms)
+* Extendable (= accepting arbitrary algorithms)
 * Written in pure Erlang
 * Comply the code convention of Erlang/OTP `stdlib` modules
 
@@ -12,9 +12,9 @@
 
 * NIFs (maybe a future goal)
 
-## Candidate PRNGs
+## Available PRNGs
 
-* AS183: `random` module
+* AS183: OTP `random` module
 * [exs64](https://github.com/jj1bdx/exs64/) (Xorshift\*64)
 * [exsplus](https://github.com/jj1bdx/exsplus/) (Xorshift+128)
 * [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift\*1024)
