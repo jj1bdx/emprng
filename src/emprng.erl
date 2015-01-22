@@ -95,13 +95,12 @@ seed(A1, A2, A3) ->
 %% Note: the type of the values depends on the algorithm handler.
 %% (new function)
 
--spec seed(X :: emprng_alg_state(), Alg :: emprng_alg_handler()) ->
+-spec seed(AS :: emprng_alg_state(), Alg :: emprng_alg_handler()) ->
       undefined | emprng_state().
 
-seed(X, Alg) ->
-    seed_put({?DEFAULT_ALG_HANDLER,
-            % No type checking on X
-             X}).
+seed(AS, Alg) ->
+    % No type checking on AS
+    seed_put({Alg, AS}).
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
 %%% uniformly distributed random numbers.
@@ -114,11 +113,31 @@ seed(X, Alg) ->
 
 -spec uniform() -> float().
 
+uniform() ->
+    {Alg, AS} = case get(?SEED_DICT) of
+                    undefined -> seed0();
+                    % No type checking here
+                    Old -> Old
+               end,
+    {X, AS2} = Alg:uniform_s(AS),
+    seed_put({Alg, AS2}),
+    X.
+
 %% uniform/1: given an integer N >= 1,
 %% uniform/1 returns a random integer X where 1 =< X =< N,
 %% updating the state in the process dictionary.
 
 -spec uniform(N :: pos_integer()) -> pos_integer().
+
+uniform(N) when is_integer(N), N >= 1 ->
+    {Alg, AS} = case get(?SEED_DICT) of
+                    undefined -> seed0();
+                    % No type checking here
+                    Old -> Old
+               end,
+    {X, AS2} = Alg:uniform_s(N, AS),
+    seed_put({Alg, AS2}),
+    X.
 
 %% uniform_s/1: given a state, uniform_s/1
 %% returns a random float X where 0.0 < X < 1.0,
@@ -127,6 +146,11 @@ seed(X, Alg) ->
 
 -spec uniform_s(S :: emprng_state()) -> {float(), NewS :: emprng_state()}.
 
+uniform_s(S) ->
+    {Alg, AS} = S,
+    {X, AS2} = Alg:uniform_S(AS),
+    {X, {Alg, AS2}}.
+
 %% uniform_s/2: given an integer N >= 1 and a state, uniform_s/2
 %% uniform_s/2 returns a random integer X where 1 =< X =< N,
 %% and a new state.
@@ -134,4 +158,8 @@ seed(X, Alg) ->
 -spec uniform_s(N :: pos_integer(), S :: emprng_state()) ->
       {pos_integer(), NewS :: emprng_state()}.
 
+uniform_s(N, S) when is_integer(N), N >= 1 ->
+    {Alg, AS} = S,
+    {X, AS2} = Alg:uniform_s(N, AS),
+    {X, {Alg, AS2}}.
 
