@@ -6,7 +6,7 @@
 * Maintain full backward compatibility
 * Extendable (= accepting arbitrary algorithms)
 * Written in pure Erlang
-* Comply the code convention of Erlang/OTP `stdlib` modules
+* Comply with the code convention of Erlang/OTP `stdlib` modules
 
 ## Non-goals
 
