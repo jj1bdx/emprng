@@ -6,11 +6,11 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 
 ```erlang
 % This depends on the algorithm handler module
--type emprng_seed() :: any().
+-type emprng_alg_state() :: any().
 % This is the module name or atom keyword of the algorithm handler module
 -type emprng_alg() :: atom(). 
 % Internal state
--type emprng_state() :: {emprng_alg(), emprng_seed()}.
+-type emprng_state() :: {emprng_alg(), emprng_alg_state()}.
 ```    
 
 ## Possible alrogithm handlers
@@ -41,7 +41,7 @@ The default algorithm handler is `emprng_as183`.
 -spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
       undefined | emprng_state().
 
-% seed/1: seed({A1, A2, A3}) is equivalend to seed(A1, A2, A3).
+% seed/1: seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3).
 % (compatible with the random module)
 
 -spec seed({A1 :: integer(), A2 :: integer(), A3 :: integer()}) ->
