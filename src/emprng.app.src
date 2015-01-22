@@ -5,7 +5,8 @@
     {registered, []},
     {modules,
         [emprng,
-         emprng_as183
+         emprng_as183,
+         emprng_exs64
         ]},
     {applications, [kernel, stdlib]}
 ]}.
