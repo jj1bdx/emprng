@@ -150,22 +150,20 @@ uniform(N) when is_integer(N), N >= 1 ->
 %% and a new state.
 %% (See OTP random module.)
 
--spec uniform_s(S :: emprng_state()) -> {float(), NewS :: emprng_state()}.
+-spec uniform_s(emprng_state()) -> {float(), NewS :: emprng_state()}.
 
-uniform_s(S) ->
-    {Alg, AS} = S,
-    {X, AS2} = Alg:uniform_S(AS),
+uniform_s({Alg, AS}) ->
+    {X, AS2} = Alg:uniform_s(AS),
     {X, {Alg, AS2}}.
 
 %% uniform_s/2: given an integer N >= 1 and a state, uniform_s/2
 %% uniform_s/2 returns a random integer X where 1 =< X =< N,
 %% and a new state.
 
--spec uniform_s(N :: pos_integer(), S :: emprng_state()) ->
+-spec uniform_s(N :: pos_integer(), emprng_state()) ->
       {pos_integer(), NewS :: emprng_state()}.
 
-uniform_s(N, S) when is_integer(N), N >= 1 ->
-    {Alg, AS} = S,
+uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
     {X, AS2} = Alg:uniform_s(N, AS),
     {X, {Alg, AS2}}.
 
