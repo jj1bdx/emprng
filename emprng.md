@@ -7,10 +7,10 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 ```erlang
 % This depends on the algorithm handler module
 -type emprng_alg_state() :: any().
-% This is the module name or atom keyword of the algorithm handler module
--type emprng_alg() :: atom(). 
+% This is the name of the algorithm handler module
+-type emprng_alg_handler() :: atom().
 % Internal state
--type emprng_state() :: {emprng_alg(), emprng_alg_state()}.
+-type emprng_state() :: {emprng_alg_handler(), emprng_alg_state()}.
 ```    
 
 ## Possible alrogithm handlers
