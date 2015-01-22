@@ -70,14 +70,20 @@ seed() ->
         Old -> Old
     end.
 
-%% seed/1: seed({A1, A2, A3}) is equivalent to seed(A2, A2, A3).
-%% (compatible with the random module)
+%% seed/1:
+%% seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3), and
+%% Seed({Alg, AS}) is equivalent to seed(Alg, AS).
+%% (the 3-element tuple argument is compatible with the random module,
+%% and the 2-element tuple argument is a new function.)
 
--spec seed({A1 :: integer(), A2 :: integer(), A3 :: integer()}) ->
+-spec seed({Alg :: emprng_alg_handler(), AS :: emprng_alg_state()} |
+           {A1 :: integer(), A2 :: integer(), A3 :: integer()}) ->
       undefined | emprng_state().
 
 seed({A1, A2, A3}) ->
-    seed(A1, A2, A3).
+    seed(A1, A2, A3);
+seed({Alg, AS}) ->
+    seed(Alg, AS).
 
 %% seed/3: seeds RNG with integer values in the process dictionary,
 %% and returns the old state.
@@ -90,15 +96,15 @@ seed(A1, A2, A3) ->
     seed_put({?DEFAULT_ALG_HANDLER,
             ?DEFAULT_ALG_HANDLER:seed(A1, A2, A3)}).
 
-%% seed/2: seeds RNG with the given values and algorithm handler
+%% seed/2: seeds RNG with the algorithm handler and given values
 %% in the process dictionary, and returns the old state.
 %% Note: the type of the values depends on the algorithm handler.
 %% (new function)
 
--spec seed(AS :: emprng_alg_state(), Alg :: emprng_alg_handler()) ->
+-spec seed(Alg :: emprng_alg_handler(), AS :: emprng_alg_state()) ->
       undefined | emprng_state().
 
-seed(AS, Alg) ->
+seed(Alg, AS) ->
     % No type checking on AS
     seed_put({Alg, AS}).
 
