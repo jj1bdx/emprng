@@ -1,0 +1,11 @@
+{application, emprng, [
+    {description, "Erlang/OTP Multiple PRNG Suite"},
+    {vsn, "0.0.1"},
+    {env, []},
+    {registered, []},
+    {modules,
+        [emprng,
+         emprng_as183
+        ]},
+    {applications, [kernel, stdlib]}
+]}.
