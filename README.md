@@ -33,7 +33,8 @@
 
 ## Acknowledgments
 
-Thanks to Dan Gunmundsson for the idea of allowing multiple PRNG handlers, and the code review.
+Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers,
+and the code review and the comments.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
 allowing redistribution of sfmt-erlang and tinymt-erlang under
