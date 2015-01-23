@@ -524,18 +524,20 @@ seed(L) when is_list(L), is_integer(hd(L)) ->
 -spec seed(integer(), integer(), integer()) -> ran_sfmt().
 
 seed(A1, A2, A3) ->
-    seed([A1, A2, A3]).
+    seed([(A1 + 1) rem 4294967295,
+          (A2 + 1) rem 4294967295,
+          (A3 + 1) rem 4294967295]).
 
 %% @doc With a given state,
 %%      Returns a uniformly-distributed float random number X
-%%      where `(X >= 0.0)' and `(X =< 1.0)'
+%%      where `(X > 0.0)' and `(X < 1.0)'
 %%      and a new state
 
 -spec uniform_s(RS::ran_sfmt()) -> {float(), ran_sfmt()}.
 
 uniform_s(RS) ->
     {X, NRS} = gen_rand32(RS),
-    {X * ?FLOAT_CONST, NRS}.
+    {(X + 0.5) * (1.0/4294967296.0), NRS}.
 
 %%      Returns a uniformly-distributed integer random number X
 %%      where (X >= 1) and (X =< N)
@@ -545,6 +547,6 @@ uniform_s(RS) ->
 
 uniform_s(N, RS) ->
     {X, NRS} = gen_rand32(RS),
-    {trunc(X * ?FLOAT_CONST * N) + 1, NRS}.
+    {trunc(X * (1.0/4294967296.0) * N) + 1, NRS}.
     
 %% end of the module    
