@@ -19,7 +19,9 @@
 %% =====================================================================
 %% Multiple PRNG module for Erlang/OTP
 %%
-%% Copyright (C) 2014-2015 Kenji Rikitake
+%% Copyright (c) 2010-2015 Kenji Rikitake, Kyoto University.
+%% Copyright (c) 2006-2015 Mutsuo Saito, Makoto Matsumoto,
+%%                         Hiroshima University, The University of Tokyo.
 %%
 %% Author contact: kenji.rikitake@acm.org
 %% =====================================================================
@@ -30,7 +32,7 @@
 -export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
          random_as183/1, random_exs64/1, random_exsplus/1,
-         random_exs1024/1]).
+         random_exs1024/1, random_sfmt/1]).
 
 -define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
 -define(SEED_DICT, random_seed).
@@ -249,6 +251,8 @@ random_as183({uniform_s, N, State0}) when is_integer(N), N >= 1 ->
 
 %% =====================================================================
 %% exs64 PRNG: Xorshift*64
+%% Algorithm by Sebastiano Vigna
+%% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
 
 %% uint64(). 64bit unsigned integer type.
@@ -328,6 +332,8 @@ random_exs64({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
 
 %% =====================================================================
 %% exsplus PRNG: Xorshift+128
+%% Algorithm by Sebastiano Vigna
+%% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
 
 %% random_exsplus_state(). Internal state data type for exsplus.
@@ -410,6 +416,8 @@ random_exsplus({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
 
 %% =====================================================================
 %% exs1024 PRNG: Xorshift*1024
+%% Algorithm by Sebastiano Vigna
+%% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
 
 %% random_exs1024_state(). Internal state data type for exs1024.
@@ -536,3 +544,434 @@ random_exs1024({uniform_s, R0}) ->
 random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
     {V, R1} = random_exs1024_next(R),
     {(V rem Max) + 1, R1}.
+
+%% =====================================================================
+%% SIMD-oriented Fast Mersennt Twister (SFMT) PRNG
+%% SFMT19937 (period: 2^19937 - 1)
+%% Algorithm by Mutsuo Saito and Makoto Matsumoto
+%% Reference URL: http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/
+%% =====================================================================
+
+%% SFMT period parameters
+%% details on SFMT-1.3.3 source code
+%%
+%% Mersenne Exponent. The period of the sequence
+%%  is a multiple of 2^MEXP-1.
+-define(MEXP, 19937).
+%% SFMT generator has an internal state array of 128-bit integers,
+%% and N is its size.
+%% -define(N, ((?MEXP div 128) + 1)).
+-define(N, 156).
+%% N32 is the size of internal state array when regarded as an array
+%% of 32-bit integers.
+%% -define(N32, (?N * 4)).
+-define(N32, 624).
+%% for init_by_list32/1:
+%% LAG =
+%% 	if
+%% 	    ?N32 >= 623 ->
+%% 		11;
+%% 	    ?N32 >= 68 ->
+%% 		7;
+%% 	    ?N32 >= 39 ->
+%% 		5;
+%% 	    ?N32 ->
+%% 		3
+%% 	end,
+%% MID = (?N32 - LAG) div 2
+-define(LAG, 11).
+-define(MID, 306).
+%% the pick up position of the array.
+-define(POS1, 122).
+%% the parameter of shift left as four 32-bit registers.
+-define(SL1, 18).
+%% the parameter of shift left as one 128-bit register.
+%% The 128-bit integer is shifted by (SL2 * 8) bits.
+-define(SL2, 1).
+%% the parameter of shift right as four 32-bit registers.
+-define(SR1, 11).
+%% the parameter of shift right as one 128-bit register.
+%% The 128-bit integer is shifted by (SL2 * 8) bits.
+-define(SR2, 1).
+%% A bitmask, used in the recursion.  These parameters are introduced
+%% to break symmetry of SIMD.
+-define(MSK1, 16#dfffffef).
+-define(MSK2, 16#ddfecb7f).
+-define(MSK3, 16#bffaffff).
+-define(MSK4, 16#bffffff6).
+%% These definitions are part of a 128-bit period certification vector.
+-define(PARITY1, 16#00000001).
+-define(PARITY2, 16#00000000).
+-define(PARITY3, 16#00000000).
+-define(PARITY4, 16#13c9e684).
+%% identification string for the algorithm
+-define(IDSTR, "SFMT-19937:122-18-1-11-1:dfffffef-ddfecb7f-bffaffff-bffffff6").
+
+%% SFMT calculation masks
+-define(BITMASK32, 16#ffffffff).
+-define(BITMASK64, 16#ffffffffffffffff).
+
+%% type w128(). Four-element list of 32-bit unsigned integers
+%% to represent a 128-bit integer.
+
+-type w128() :: [integer()].
+
+%% type random_sfmt_intstate().
+%% N-element list of 128-bit unsigned integers,
+%% represented as a four-element list of 32-bit integers.
+%% The number of N is 156.
+%% Each 128-bit number is represented in little endian,
+%% e.g., a 128-bit X = [X0, X1, X2, X3],
+%% where represented in programming language C:
+%% ```
+%% /* begin */
+%% union X {
+%% 	uint32_t u[4];
+%% };
+%% /* end */
+%% '''
+%% And the 128-bit list is a flat concatenation of 128-bit number lists,
+
+-type random_sfmt_intstate() :: [integer()].
+
+%% type ran_sfmt(). N-element list of 128-bit unsigned integers,
+%% represented as a list of 32-bit integers. The number of N is 156.
+
+-type ran_sfmt() :: {[integer()], random_sfmt_intstate()}.
+
+
+%% SIMD 128-bit right shift simulation for little endian SIMD
+%% of Shift*8 bits.
+
+-spec random_sfmt_rshift128(w128(), integer()) -> w128().
+
+random_sfmt_rshift128(In, Shift) ->
+    [I0, I1, I2, I3] = In,
+    TH = (I3 bsl 32) bor (I2),
+    TL = (I1 bsl 32) bor (I0),
+    OH = (TH bsr (Shift * 8)) band ?BITMASK64,
+    OL = (TL bsr (Shift * 8) bor (TH bsl (64 - (Shift * 8))))
+	band ?BITMASK64,
+    [OL band ?BITMASK32, OL bsr 32,
+     OH band ?BITMASK32, OH bsr 32].
+
+%% SIMD 128-bit left shift simulation for little endian SIMD
+%% of Shift*8 bits.
+
+-spec random_sfmt_lshift128(w128(), integer()) -> w128().
+
+random_sfmt_lshift128(In, Shift) ->
+    [I0, I1, I2, I3] = In,
+    TH = (I3 bsl 32) bor (I2),
+    TL = (I1 bsl 32) bor (I0),
+    OL = (TL bsl (Shift * 8)) band ?BITMASK64,
+    OH = (TH bsl (Shift * 8) bor (TL bsr (64 - (Shift * 8))))
+	band ?BITMASK64,
+    [OL band ?BITMASK32, OL bsr 32,
+     OH band ?BITMASK32, OH bsr 32].
+
+%% The recursion formula operation of SFMT.
+
+-spec random_sfmt_do_recursion(w128(), w128(), w128(), w128()) -> w128().
+
+random_sfmt_do_recursion(A, B, C, D) ->
+    [A0, A1, A2, A3] = A,
+    [B0, B1, B2, B3] = B,
+    % [C0, C1, C2, C3] = C,
+    [D0, D1, D2, D3] = D,
+    [X0, X1, X2, X3] = random_sfmt_lshift128(A, ?SL2),
+    [Y0, Y1, Y2, Y3] = random_sfmt_rshift128(C, ?SR2),
+    [
+     A0 bxor X0 bxor ((B0 bsr ?SR1) band ?MSK1) bxor Y0
+        bxor ((D0 bsl ?SL1) band ?BITMASK32),
+     A1 bxor X1 bxor ((B1 bsr ?SR1) band ?MSK2) bxor Y1
+        bxor ((D1 bsl ?SL1) band ?BITMASK32),
+     A2 bxor X2 bxor ((B2 bsr ?SR1) band ?MSK3) bxor Y2
+        bxor ((D2 bsl ?SL1) band ?BITMASK32),
+     A3 bxor X3 bxor ((B3 bsr ?SR1) band ?MSK4) bxor Y3
+        bxor ((D3 bsl ?SL1) band ?BITMASK32)
+     ].
+
+-spec random_sfmt_gen_rand_recursion(non_neg_integer(),
+    [integer()], [integer()], [integer()],
+    [integer()], [integer()], w128(), w128()) -> [integer()].
+
+random_sfmt_gen_rand_recursion(0, Acc, _, _, _, _, _, _) ->
+    lists:reverse(Acc);
+random_sfmt_gen_rand_recursion(K, Acc, Int, AccInt, [], AccIntP, R, Q) ->
+    random_sfmt_gen_rand_recursion(K, Acc, Int, AccInt,
+		       lists:reverse(AccIntP),
+		       [],
+		       R, Q);
+random_sfmt_gen_rand_recursion(K, Acc, [], AccInt, IntP, AccIntP, R, Q) ->
+    random_sfmt_gen_rand_recursion(K, Acc,
+		       lists:reverse(AccInt),
+		       [],
+		       IntP, AccIntP, R, Q);
+random_sfmt_gen_rand_recursion(K, Acc, Int,
+		   AccInt, IntP, AccIntP,
+		   [R0, R1, R2, R3],
+		   [Q0, Q1, Q2, Q3]) ->
+    [A0, A1, A2, A3 | IntN ] = Int,
+    [B0, B1, B2, B3 | IntPN ] = IntP,
+    [X0, X1, X2, X3] = random_sfmt_do_recursion([A0, A1, A2, A3],
+				    [B0, B1, B2, B3],
+				    [R0, R1, R2, R3],
+				    [Q0, Q1, Q2, Q3]),
+    random_sfmt_gen_rand_recursion(K - 4,
+		       [X3 | [X2 | [X1 | [X0 | Acc]]]],
+		       IntN,
+		       [X3 | [X2 | [X1 | [X0 | AccInt]]]],
+		       IntPN,
+		       [X3 | [X2 | [X1 | [X0 | AccIntP]]]],
+		       [Q0, Q1, Q2, Q3],
+		       [X0, X1, X2, X3]).
+
+%% filling the internal state array with SFMT PRNG
+
+-spec random_sfmt_gen_rand_all(random_sfmt_intstate()) ->
+        random_sfmt_intstate().
+
+random_sfmt_gen_rand_all(Int) ->
+    [T3, T2, T1, T0, S3, S2, S1, S0 | _] = lists:reverse(Int),
+    random_sfmt_gen_rand_recursion(?N32, [], Int, [],
+		       lists:nthtail(?POS1 * 4, Int), [],
+		       [S0, S1, S2, S3], [T0, T1, T2, T3]).
+
+random_sfmt_period_modification_rec1(Parity, I) ->
+    random_sfmt_period_modification_rec1(0, Parity, I).
+
+random_sfmt_period_modification_rec1(true, _, I) ->
+    {I, true};
+random_sfmt_period_modification_rec1(32, _, I) ->
+    {I, false};
+random_sfmt_period_modification_rec1(X, Parity, I) ->
+    Work = 1 bsl X,
+    case (Work band Parity =/= 0) of
+	true ->
+	    random_sfmt_period_modification_rec1(true, Parity, I bxor Work);
+	false ->
+	    random_sfmt_period_modification_rec1(X + 1, Parity, I)
+    end.
+
+random_sfmt_period_modification(Int) ->
+    [I0, I1, I2, I3 | IR ] = Int,
+    {NI0, F0} = random_sfmt_period_modification_rec1(?PARITY1, I0),
+    {NI1, F1} = random_sfmt_period_modification_rec1(?PARITY2, I1),
+    {NI2, F2} = random_sfmt_period_modification_rec1(?PARITY3, I2),
+    {NI3, F3} = random_sfmt_period_modification_rec1(?PARITY4, I3),
+    % F[0-3] are true or false
+    if
+	F0 ->
+	    [NI0, I1, I2, I3 | IR];
+	F1 ->
+	    [I0, NI1, I2, I3 | IR];
+	F2 ->
+	    [I0, I1, NI2, I3 | IR];
+	F3 ->
+	    [I0, I1, I2, NI3 | IR];
+	true ->
+	    Int
+    end.
+
+random_sfmt_period_certification(Int) ->
+    [I0, I1, I2, I3 | _ ] = Int,
+    In0 = (I0 band ?PARITY1) bxor
+	(I1 band ?PARITY2) bxor
+	(I2 band ?PARITY3) bxor	
+	(I3 band ?PARITY4),
+    In1 = In0 bxor (In0 bsr 16),
+    In2 = In1 bxor (In1 bsr 8),
+    In3 = In2 bxor (In2 bsr 4),
+    In4 = In3 bxor (In3 bsr 2),
+    In5 = In4 bxor (In4 bsr 1),
+    Inner = In5 band 1,
+    case Inner of
+	1 ->
+	    Int;
+	0 ->
+	    random_sfmt_period_modification(Int)
+    end.
+
+random_sfmt_func1(X) ->
+    ((X bxor (X bsr 27)) * 1664525) band ?BITMASK32.
+
+random_sfmt_func2(X) ->
+    ((X bxor (X bsr 27)) * 1566083941) band ?BITMASK32.
+
+random_sfmt_init_gen_rand_rec1(?N32, Acc) ->
+    lists:reverse(Acc);
+random_sfmt_init_gen_rand_rec1(I, Acc) ->
+    [H | _] = Acc,
+    random_sfmt_init_gen_rand_rec1(
+      I + 1,
+      [((1812433253 * (H bxor (H bsr 30))) + I) band ?BITMASK32 | Acc]).
+
+%% @doc generates an internal state from an integer seed
+
+-spec random_sfmt_init_gen_rand(integer()) ->
+        random_sfmt_intstate().
+
+random_sfmt_init_gen_rand(Seed) ->
+    random_sfmt_period_certification(
+        random_sfmt_init_gen_rand_rec1(1, [Seed])).
+
+random_sfmt_init_by_list32_rec1(0, I, _, A) ->
+    {I, A};
+random_sfmt_init_by_list32_rec1(K, I, [], A) ->
+    R = random_sfmt_func1(array:get(I, A) bxor
+		  array:get((I + ?MID) rem ?N32, A) bxor
+		  array:get((I + ?N32 - 1) rem ?N32, A)),
+    A2 = array:set((I + ?MID) rem ?N32,
+		   (array:get((I + ?MID) rem ?N32, A) + R) band ?BITMASK32,
+		   A),
+    R2 = (R + I) band ?BITMASK32,
+    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
+		 (array:get((I + ?MID + ?LAG) rem ?N32, A2) + R2) band ?BITMASK32,
+		 A2),
+    A4 = array:set(I, R2, A3),
+    I2 = (I + 1) rem ?N32,
+    random_sfmt_init_by_list32_rec1(K - 1, I2, [], A4);
+random_sfmt_init_by_list32_rec1(K, I, Key, A) ->
+    R = random_sfmt_func1(array:get(I, A) bxor
+		  array:get((I + ?MID) rem ?N32, A) bxor
+		  array:get((I + ?N32 - 1) rem ?N32, A)),
+    A2 = array:set((I + ?MID) rem ?N32,
+		   (array:get((I + ?MID) rem ?N32, A) + R) band ?BITMASK32,
+		   A),
+    [H|T] = Key,
+    R2 = (R + H + I) band ?BITMASK32,
+    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
+		   (array:get((I + ?MID + ?LAG) rem ?N32, A2) + R2) band ?BITMASK32,
+		   A2),
+    A4 = array:set(I, R2, A3),
+    I2 = (I + 1) rem ?N32,
+    random_sfmt_init_by_list32_rec1(K - 1, I2, T, A4).
+
+random_sfmt_init_by_list32_rec2(0, _, A) ->
+    A;
+random_sfmt_init_by_list32_rec2(K, I, A) ->
+    R = random_sfmt_func2((array:get(I, A) +
+		  array:get((I + ?MID) rem ?N32, A) +
+		  array:get((I + ?N32 - 1) rem ?N32, A)) band ?BITMASK32),
+    A2 = array:set((I + ?MID) rem ?N32,
+		   (array:get((I + ?MID) rem ?N32, A) bxor R),
+		   A),
+    R2 = (R - I) band ?BITMASK32,
+    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
+		   (array:get((I + ?MID + ?LAG) rem ?N32, A2) bxor R2),
+		   A2),
+    A4 = array:set(I, R2, A3),
+    I2 = (I + 1) rem ?N32,
+    random_sfmt_init_by_list32_rec2(K - 1, I2, A4).
+
+%% generates an internal state from a list of 32-bit integers
+
+-spec random_sfmt_init_by_list32([integer()]) ->
+    random_sfmt_intstate().
+
+random_sfmt_init_by_list32(Key) ->
+    Keylength = length(Key),
+
+    A = array:new(?N32, {default, 16#8b8b8b8b}),
+
+    Count =
+	if
+	    Keylength + 1 > ?N32 ->
+		Keylength + 1;
+	    true ->
+		?N32
+	end,
+    R = random_sfmt_func1(array:get(0, A) bxor
+		  array:get(?MID, A) bxor
+		  array:get(?N32 - 1, A)),
+    A2 = array:set(?MID,
+		   (array:get(?MID, A) + R) band ?BITMASK32,
+		   A),
+    R2 = (R + Keylength) band ?BITMASK32,
+    A3 = array:set(?MID + ?LAG,
+		   (array:get(?MID + ?LAG, A2) + R2) band ?BITMASK32,
+		   A2),
+    A4 = array:set(0, R2, A3),
+
+    Count1 = Count - 1,
+    {I1, A5} = random_sfmt_init_by_list32_rec1(Count1, 1, Key, A4),
+
+    random_sfmt_period_certification(
+      array:to_list(random_sfmt_init_by_list32_rec2(?N32, I1, A5))).
+
+%% Note: ran_sfmt() -> {[integer()], random_sfmt_intstate()}
+
+%% generates a 32-bit random number from the given ran_sfmt()
+
+-spec random_sfmt_gen_rand32
+        (random_sfmt_intstate()) -> {integer(), ran_sfmt()};
+        (ran_sfmt()) -> {integer(), ran_sfmt()}.
+
+random_sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?N32 ->
+    % when random_sfmt_intstate() is directly passed
+    % note: given random_sfmt_intstate() is
+    %       re-initialized by gen_rand_all/1
+    L2 = random_sfmt_gen_rand_all(L),
+    [H|T] = L2,
+    {H, {T, L2}};
+random_sfmt_gen_rand32({[], I}) ->
+    I2 = random_sfmt_gen_rand_all(I),
+    % this operation is random_sfmt_intstate() type dependent
+    [H|T] = I2,
+    {H, {T, I2}};
+random_sfmt_gen_rand32({R, I}) ->
+    [H|T] = R,
+    {H, {T, I}}.
+
+%% compatible funtions to the random module in stdlib
+
+-spec random_sfmt
+        (seed0) -> ran_sfmt();
+        ({seed, A1, A2, A3})-> ran_sfmt() when
+            A1 :: integer(), A2 :: integer(), A3 :: integer();
+        ({uniform_s, State0}) -> {float(), State1} when
+            State0 :: ran_sfmt(), State1 :: ran_sfmt();
+        ({uniform_s, N, State0}) -> {integer(), State1} when
+            N :: pos_integer(),
+            State0 :: ran_sfmt(), State1 :: ran_sfmt().
+
+%% seed0: initial PRNG seed
+%% Returns the default internal state
+
+random_sfmt(seed0) ->
+    I = random_sfmt_init_gen_rand(1234),
+    % this operation is random_sfmt_intstate() type dependent
+    {I, I};
+
+%% seed: seeding with three Integers
+%% Puts the seed computed from the given integer list by init_by_list32/1
+%% and puts the internal state into the process dictionary
+%% and initializes the random number list with the internal state
+%% and returns the old internal state (internal use only)
+
+random_sfmt({seed, A1, A2, A3}) ->
+    I = random_sfmt_init_by_list32([
+            (A1 + 1) rem 4294967295,
+            (A2 + 1) rem 4294967295,
+            (A3 + 1) rem 4294967295]),
+    % this operation is random_sfmt_intstate() type dependent
+    {I, I};
+
+%% With a given state,
+%% Returns a uniformly-distributed float random number X
+%% where `(X > 0.0)' and `(X < 1.0)'
+%% and a new state
+
+random_sfmt({uniform_s, RS}) ->
+    {X, NRS} = random_sfmt_gen_rand32(RS),
+    {(X + 0.5) * (1.0/4294967296.0), NRS};
+
+%% Returns a uniformly-distributed integer random number X
+%% where (X >= 1) and (X =< N)
+%% and a new state
+
+random_sfmt({uniform_s, N, RS}) ->
+    {X, NRS} = random_sfmt_gen_rand32(RS),
+    {trunc(X * (1.0/4294967296.0) * N) + 1, NRS}.
+
