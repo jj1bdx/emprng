@@ -30,3 +30,12 @@
 
 * Apache License 2.0 (individual PRNG may have less restrictive licenses)
 * See individual files for the license details
+
+## Acknowledgments
+
+Thanks to Dan Gunmundsson for the idea of allowing multiple PRNG handlers, and the code review.
+
+Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
+allowing redistribution of sfmt-erlang and tinymt-erlang under
+Erlang Public License.
+
