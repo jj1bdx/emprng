@@ -29,7 +29,8 @@
 %% NOTE: this module will replace OTP random module
 -module(random).
 
--export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
+-export([seed/0, seed/1, seed/2, seed/3, seed/4,
+         seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
          random_as183/1, random_exs64/1, random_exsplus/1,
          random_exs1024/1, random_sfmt/1, random_tinymt/1]).
@@ -109,18 +110,8 @@ seed({A1, A2, A3}) ->
 seed({Alg, AS}) ->
     seed(Alg, AS).
 
-%% seed/3: seeds RNG with integer values in the process dictionary,
-%% and returns the old state.
-%% (compatible with the random module)
-
--spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
-      undefined | random_state().
-
-seed(A1, A2, A3) ->
-    seed_put({?DEFAULT_ALG_HANDLER,
-            ?DEFAULT_ALG_HANDLER({seed, A1, A2, A3})}).
-
-%% seed/2: seeds RNG with the algorithm handler and given values
+%% seed/2: seeds RNG with the algorithm handler and
+%% given internal state value (depending on the algorihm handler)
 %% in the process dictionary, and returns the old state.
 %% Note: the type of the values depends on the algorithm handler.
 %% (new function)
@@ -131,6 +122,28 @@ seed(A1, A2, A3) ->
 seed(Alg, AS) ->
     % No type checking on AS
     seed_put({Alg, AS}).
+
+%% seed/4: seeds RNG with the algorithm handler and
+%% given three integers in the process dictionary,
+%% and returns the old state.
+%% (new function)
+
+-spec seed(Alg :: random_alg_handler(),
+           A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
+           undefined | random_state().
+
+seed(Alg, A1, A2, A3) ->
+    seed_put({Alg, Alg({seed, A1, A2, A3})}).
+
+%% seed/3: seeds RNG with integer values in the process dictionary,
+%% and returns the old state.
+%% (compatible with the random module)
+
+-spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
+      undefined | random_state().
+
+seed(A1, A2, A3) ->
+    seed(?DEFAULT_ALG_HANDLER, A1, A2, A3).
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
 %%% uniformly distributed random numbers.
