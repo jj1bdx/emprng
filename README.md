@@ -21,12 +21,12 @@
 * [sfmt-erlang](https://github.com/jj1bdx/sfmt-erlang/) (SFMT19937)
 * [tinymt-erlang](https://github.com/jj1bdx/tinymt-erlang/) (TinyMT)
 
-## How to implement PRNG algorithms
+## How to implement PRNG algorithms on emprng
 
-* A master module `emprng` will accept the `random`-compatible entry functions
-* Each PRNG algorithm has one or more individual Erlang modules
+* The master module `emprng` will accept the `random`-compatible entry functions
+* Each PRNG algorithm has one or more individual Erlang module
 
 ## License
 
-Apache License 2.0 (individual PRNG may have less restrictive licenses)
-
+* Apache License 2.0 (individual PRNG may have less restrictive licenses)
+* See individual files for the license details
