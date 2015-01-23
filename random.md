@@ -19,6 +19,8 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 * `random_exs64`: [exs64](https://github.com/jj1bdx/exs64/)
 * `random_exsplus`: [exsplus](https://github.com/jj1bdx/exsplus/)
 * `random_exs1024`: [exs1024](https://github.com/jj1bdx/exs1024/)
+* `random_sfmt`: [sfmt-erlang](https://github.com/jj1bdx/sfmt-erlang/)
+* `random_tinymt`: [tinymt-erlang](https://github.com/jj1bdx/tinymt-erlang/)
 
 ## Default algorithm handler function
 
