@@ -68,7 +68,7 @@ seed0() ->
 -spec seed0(random_alg_handler()) -> random_state().
 
 seed0(Alg) ->
-    {Alg, Alg({seed0})}.
+    {Alg, Alg(seed0)}.
 
 %% seed_put/1: internal function to put seed into the process dictionary.
 
@@ -207,7 +207,9 @@ uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
 
 %%-----------------------------------------------------------------------
 
--spec random_as183({seed0}) -> ran();
+-spec random_as183
+        (name) -> atom;
+        (seed0) -> ran();
         ({seed, A1, A2, A3})-> ran() when
                 A1 :: integer(), A2 :: integer(), A3 :: integer();
         ({uniform_s, State0}) -> {float(), State1} when
@@ -215,10 +217,14 @@ uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
         ({uniform_s, N, State0}) -> {integer(), State1} when
                 N:: pos_integer(), State0 :: ran(), State1 :: ran().
 
+%% name: return name of the function
+
+random_as183(name) ->
+    random_as183;
 
 %% seed0: initial PRNG seed
 
-random_as183({seed0}) ->
+random_as183(seed0) ->
     {3172, 9814, 20125};
 
 %% seed: seeding with three Integers
