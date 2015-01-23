@@ -29,7 +29,8 @@
 
 -export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
-         random_as183/1, random_exs64/1, random_exsplus/1]).
+         random_as183/1, random_exs64/1, random_exsplus/1,
+         random_exs1024/1]).
 
 -define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
 -define(SEED_DICT, random_seed).
@@ -349,7 +350,7 @@ random_exsplus_next(R) ->
     S0 = R#random_exsplus_state.s1,
     S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
     S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
-    {(S0 + S12) band ?UINT64MASK, 
+    {(S0 + S12) band ?UINT64MASK,
         #random_exsplus_state{s0 = S0, s1 = S12}}.
 
 %%-----------------------------------------------------------------------
@@ -405,4 +406,133 @@ random_exsplus({uniform_s, R0}) ->
 
 random_exsplus({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
     {V, R1} = random_exsplus_next(R),
+    {(V rem Max) + 1, R1}.
+
+%% =====================================================================
+%% exs1024 PRNG: Xorshift*1024
+%% =====================================================================
+
+%% random_exs1024_state(). Internal state data type for exs1024.
+%% Representing 16 64-bit numbers with a pair of
+%% the list and a reverse list.
+
+-type random_exs1024_state() :: {list(uint64()), list(uint64())}.
+
+%% Calculation of xorshift1024star.
+%% random_exs1024_calc(S0, S1) -> {X, NS1}.
+%% X: random number output
+
+-spec random_exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
+
+random_exs1024_calc(S0, S1) ->
+    S11 = S1 bxor ((S1 bsl 31) band ?UINT64MASK),
+    S12 = S11 bxor (S11 bsr 11),
+    S01 = S0 bxor (S0 bsr 30),
+    NS1 = S01 bxor S12,
+    {(NS1 * 1181783497276652981) band ?UINT64MASK, NS1}.
+
+%% Advance xorshift1024star state for one step.
+%% and generate 64bit unsigned integer from
+%% the xorshift1024star internal state.
+
+-spec random_exs1024_next(random_exs1024_state()) ->
+        {uint64(), random_exs1024_state()}.
+
+random_exs1024_next({[H], RL}) ->
+    random_exs1024_next({[H|lists:reverse(RL)], []});
+random_exs1024_next({L, RL}) ->
+    [S0|L2] = L,
+    [S1|L3] = L2,
+    {X, NS1} = random_exs1024_calc(S0, S1),
+    {X, {[NS1|L3], [S0|RL]}}.
+
+%% Generate a list of 16 64-bit element list
+%% of the xorshift64star random sequence
+%% from a given 64-bit seed.
+%% Note: dependent on random_exs64_next/1
+
+-spec random_exs1024_gen1024(uint64()) -> list(uint64()).
+
+random_exs1024_gen1024(R) ->
+        random_exs1024_gen1024(16, R, []).
+
+-spec random_exs1024_gen1024(
+        non_neg_integer(), uint64(), list(uint64())) ->
+            list(uint64()).
+
+random_exs1024_gen1024(0, _, L) ->
+    L;
+random_exs1024_gen1024(N, R, L) ->
+    {X, R2} = random_exs64_next(R),
+    random_exs1024_gen1024(N - 1, R2, [X|L]).
+
+%%-----------------------------------------------------------------------
+
+-spec random_exs1024
+        (seed0) -> random_exs1024_state();
+        ({seed, A1, A2, A3})-> random_exs1024_state() when
+                A1 :: integer(), A2 :: integer(), A3 :: integer();
+        ({uniform_s, State0}) -> {float(), State1} when
+                State0 :: random_exs1024_state(),
+                State1 :: random_exs1024_state();
+        ({uniform_s, N, State0}) -> {integer(), State1} when
+                N:: pos_integer(),
+                State0 :: random_exs1024_state(),
+                State1 :: random_exs1024_state().
+
+-define(UINT21MASK, 16#1fffff).
+
+%% seed0: initial PRNG seed
+%% Set the default seed value to xorshift1024star state
+%% in the process directory (Compatible with random:seed0/0).
+
+random_exs1024(seed0) ->
+    {
+     [
+      16#0123456789abcdef,
+      16#123456789abcdef0,
+      16#23456789abcdef01,
+      16#3456789abcdef012,
+      16#456789abcdef0123,
+      16#56789abcdef01234,
+      16#6789abcdef012345,
+      16#789abcdef0123456,
+      16#89abcdef01234567,
+      16#9abcdef012345678,
+      16#abcdef0123456789,
+      16#bcdef0123456789a,
+      16#cdef0123456789ab,
+      16#def0123456789abc,
+      16#ef0123456789abcd,
+      16#f0123456789abcde
+     ], []};
+
+%% seed: seeding with three Integers
+%% Set the seed value to xorshift1024star state in the process directory
+%% with the given three unsigned 21-bit integer arguments
+%% Multiplicands here: three 21-bit primes.
+%% TODO: this seeding has a room to improve.
+
+random_exs1024({seed, A1, A2, A3}) ->
+    B1 = (((A1 band ?UINT21MASK) + 1) * 2097131) band ?UINT21MASK,
+    B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
+    B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
+    {random_exs1024_gen1024(
+            (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []};
+
+%% {uniform_s, State} -> {F, NewState}:
+%% Generate float from
+%% given xorshift1024star internal state.
+%% (Note: 0.0 =&lt; result &lt; 1.0)
+
+random_exs1024({uniform_s, R0}) ->
+    {V, R1} = random_exs1024_next(R0),
+    {V / 18446744073709551616.0, R1};
+
+%% {uniform_s, N, State} -> {I, NewState}:
+%% @doc Generate integer from given xorshift1024star internal state.
+%% (Note: 0 =&lt; result &lt; MAX (given positive integer))
+
+random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
+    {V, R1} = random_exs1024_next(R),
     {(V rem Max) + 1, R1}.
