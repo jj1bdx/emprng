@@ -32,7 +32,7 @@
 -export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
          random_as183/1, random_exs64/1, random_exsplus/1,
-         random_exs1024/1, random_sfmt/1]).
+         random_exs1024/1, random_sfmt/1, random_tinymt/1]).
 
 -define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
 -define(SEED_DICT, random_seed).
@@ -549,7 +549,8 @@ random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
 %% SIMD-oriented Fast Mersennt Twister (SFMT) PRNG
 %% SFMT19937 (period: 2^19937 - 1)
 %% Algorithm by Mutsuo Saito and Makoto Matsumoto
-%% Reference URL: http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/
+%% Reference URL:
+%% http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/
 %% =====================================================================
 
 %% SFMT period parameters
@@ -924,6 +925,8 @@ random_sfmt_gen_rand32({R, I}) ->
     [H|T] = R,
     {H, {T, I}}.
 
+%%-----------------------------------------------------------------------
+
 %% compatible funtions to the random module in stdlib
 
 -spec random_sfmt
@@ -974,4 +977,274 @@ random_sfmt({uniform_s, RS}) ->
 random_sfmt({uniform_s, N, RS}) ->
     {X, NRS} = random_sfmt_gen_rand32(RS),
     {trunc(X * (1.0/4294967296.0) * N) + 1, NRS}.
+
+%% =====================================================================
+%% Tiny Mersennt Twister (TinyMT) PRNG
+%% Algorithm by Mutsuo Saito and Makoto Matsumoto
+%% Reference URL:
+%% http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/TINYMT/index.html
+%% =====================================================================
+
+%% type uint32(). 32bit unsigned integer type.
+
+-type uint32() :: 0..16#ffffffff.
+
+-record(random_tinymt_intstate32,
+	{status0 :: uint32(),
+	 status1 :: uint32(),
+	 status2 :: uint32(),
+	 status3 :: uint32(),
+	 mat1 :: uint32(),
+	 mat2 :: uint32(),
+	 tmat :: uint32()}).
+
+%% type random_tinymt_intstate32(). Internal state data type for TinyMT.
+%% Internally represented as the record <code>#intstate32{}</code>,
+%% including the 127bit seed and 96bit polynomial data.
+
+-type random_tinymt_intstate32() ::
+        #random_tinymt_intstate32{}.
+
+-define(TINYMT32_SH0, 1).
+-define(TINYMT32_SH1, 10).
+-define(TINYMT32_SH8, 8).
+-define(TINYMT32_MASK, 16#7fffffff).
+-define(TINYMT32_UINT32, 16#ffffffff).
+
+-define(TWOPOW32, 16#100000000).
+
+-define(TINYMT32_MIN_LOOP, 8).
+-define(TINYMT32_PRE_LOOP, 8).
+-define(TINYMT32_LAG, 1).
+-define(TINYMT32_MID, 1).
+-define(TINYMT32_SIZE, 4).
+
+%% Advance TinyMT state for one step.
+%% Note: running temper function is required
+%% to obtain the actual random number.
+
+-spec random_tinymt_next_state(random_tinymt_intstate32()) ->
+        random_tinymt_intstate32().
+
+random_tinymt_next_state(R) ->
+    Y0 = R#random_tinymt_intstate32.status3,
+    X0 = R#random_tinymt_intstate32.status0
+         bxor R#random_tinymt_intstate32.status1
+         bxor R#random_tinymt_intstate32.status2,
+    X1 = (X0 bxor (X0 bsl ?TINYMT32_SH0)) band ?TINYMT32_UINT32,
+    Y1 = Y0 bxor (Y0 bsr ?TINYMT32_SH0) bxor X1,
+    S0 = R#random_tinymt_intstate32.status1,
+    S10 = R#random_tinymt_intstate32.status2,
+    S20 = (X1 bxor (Y1 bsl ?TINYMT32_SH1)) band ?TINYMT32_UINT32,
+    S3 = Y1,
+    Y1M = (-(Y1 band 1)) band ?TINYMT32_UINT32,
+    S1 = S10 bxor (R#random_tinymt_intstate32.mat1 band Y1M),
+    S2 = S20 bxor (R#random_tinymt_intstate32.mat2 band Y1M),
+    R#random_tinymt_intstate32{
+        status0 = S0, status1 = S1, status2 = S2, status3 = S3}.
+
+%% Generate 32bit unsigned integer from the TinyMT internal state.
+
+-spec random_tinymt_temper(random_tinymt_intstate32()) -> uint32().
+
+random_tinymt_temper(R) ->
+    T0 = R#random_tinymt_intstate32.status3,
+    T1 = (R#random_tinymt_intstate32.status0 +
+         (R#random_tinymt_intstate32.status2 bsr ?TINYMT32_SH8))
+          band ?TINYMT32_UINT32,
+    T2 = T0 bxor T1,
+    T1M = (-(T1 band 1)) band ?TINYMT32_UINT32,
+    T2 bxor (R#random_tinymt_intstate32.tmat band T1M).
+
+%% Generate 32bit-resolution float from the TinyMT internal state.
+%% (Note: 0.0 &lt; result &lt; 1.0)
+-spec random_tinymt_temper_float(random_tinymt_intstate32()) -> float().
+
+random_tinymt_temper_float(R) ->
+    (random_tinymt_temper(R) + 0.5) * (1.0 / 4294967296.0).
+
+-spec random_tinymt_period_certification(random_tinymt_intstate32()) ->
+        random_tinymt_intstate32().
+
+%% Certify TinyMT internal state for proper seeding:
+%% if the lower 127bits of the seed is all zero, reinitialize.
+
+random_tinymt_period_certification(
+    #random_tinymt_intstate32{
+        status0 = 0, status1 = 0, status2 = 0, status3 = 0,
+            mat1 = M1, mat2 = M2, tmat = TM}) ->
+    #random_tinymt_intstate32{
+        status0 = $T, status1 = $I, status2 = $N, status3 = $Y,
+            mat1 = M1, mat2 = M2, tmat = TM};
+random_tinymt_period_certification(
+    #random_tinymt_intstate32{
+        status0 = 16#80000000, status1 = 0, status2 = 0, status3 = 0,
+                mat1 = M1, mat2 = M2, tmat = TM}) ->
+    #random_tinymt_intstate32{
+        status0 = $T, status1 = $I, status2 = $N, status3 = $Y,
+            mat1 = M1, mat2 = M2, tmat = TM};
+random_tinymt_period_certification(_R) -> _R.
+
+-spec random_tinymt_ini_func1(uint32()) -> uint32().
+
+random_tinymt_ini_func1(X) ->
+    ((X bxor (X bsr 27)) * 1664525) band ?TINYMT32_UINT32.
+
+-spec random_tinymt_ini_func2(uint32()) -> uint32().
+
+random_tinymt_ini_func2(X) ->
+    ((X bxor (X bsr 27)) * 1566083941) band ?TINYMT32_UINT32.
+
+-spec random_tinymt_init_rec2(integer(), integer(),
+        random_tinymt_intstate32()) -> random_tinymt_intstate32().
+
+random_tinymt_init_rec2(I, N, R) when I =:= N ->
+    R;
+random_tinymt_init_rec2(I, N, R) when I < N ->
+    R1 = random_tinymt_next_state(R),
+    random_tinymt_init_rec2(I + 1, N, R1).
+
+-spec random_tinymt_init_by_list32_rec1
+        (integer(), integer(), [uint32()], array:array(uint32())) ->
+            {integer(), array:array(uint32())}.
+
+random_tinymt_init_by_list32_rec1(0, I, _, ST) ->
+    {I, ST};
+random_tinymt_init_by_list32_rec1(K, I, [], ST) ->
+    RR = random_tinymt_ini_func1(array:get(I, ST) bxor
+             array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
+             array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
+    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
+              (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) + RR)
+               band ?TINYMT32_UINT32, ST),
+    RR2 = (RR + I) band ?TINYMT32_UINT32,
+    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
+                 (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) + RR2) band ?TINYMT32_UINT32,
+                 ST2),
+    ST4 = array:set(I, RR2, ST3),
+    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    random_tinymt_init_by_list32_rec1(K - 1, I2, [], ST4);
+random_tinymt_init_by_list32_rec1(K, I, Key, ST) ->
+    RR = random_tinymt_ini_func1(array:get(I, ST) bxor
+                  array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
+                  array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
+    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
+                   (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) + RR) band ?TINYMT32_UINT32,
+                    ST),
+    [H|T] = Key,
+    RR2 = (RR + H + I) band ?TINYMT32_UINT32,
+    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
+                 (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) + RR2) band ?TINYMT32_UINT32,
+                 ST2),
+    ST4 = array:set(I, RR2, ST3),
+    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    random_tinymt_init_by_list32_rec1(K - 1, I2, T, ST4).
+
+-spec random_tinymt_init_by_list32_rec2
+        (integer(), integer(), array:array(uint32())) -> array:array(uint32()).
+
+random_tinymt_init_by_list32_rec2(0, _, ST) ->
+    ST;
+random_tinymt_init_by_list32_rec2(K, I, ST) ->
+    RR = random_tinymt_ini_func2((array:get(I, ST) +
+                  array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) +
+                  array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)) band ?TINYMT32_UINT32),
+    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
+                   (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor RR),
+                   ST),
+    RR2 = (RR - I) band ?TINYMT32_UINT32,
+    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
+                   (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) bxor RR2),
+                   ST2),
+    ST4 = array:set(I, RR2, ST3),
+    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    random_tinymt_init_by_list32_rec2(K - 1, I2, ST4).
+
+%% @doc Generate a TinyMT internal state from a list of 32-bit integers.
+
+-spec random_tinymt_init_by_list32(random_tinymt_intstate32(), [uint32()]) ->
+        random_tinymt_intstate32().
+
+random_tinymt_init_by_list32(R, K) ->
+    KL = length(K),
+    ST = array:new(4),
+    ST0 = array:set(0, 0, ST),
+    ST1 = array:set(1, R#random_tinymt_intstate32.mat1, ST0),
+    ST2 = array:set(2, R#random_tinymt_intstate32.mat2, ST1),
+    ST3 = array:set(3, R#random_tinymt_intstate32.tmat, ST2),
+    C =
+        if
+            KL + 1 > ?TINYMT32_MIN_LOOP ->
+                KL + 1;
+            true ->
+                ?TINYMT32_MIN_LOOP
+        end,
+    RR1 = random_tinymt_ini_func1(array:get(0, ST3) bxor
+                  array:get(?TINYMT32_MID rem ?TINYMT32_SIZE, ST3) bxor
+                  array:get((?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST3)),
+    ST4 = array:set(?TINYMT32_MID rem ?TINYMT32_SIZE,
+            (array:get(?TINYMT32_MID rem ?TINYMT32_SIZE, ST3) + RR1) band ?TINYMT32_UINT32,
+                    ST3),
+    RR2 = (RR1 + KL) band ?TINYMT32_UINT32,
+    ST5 = array:set((?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
+                   (array:get((?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST4) + RR2) band ?TINYMT32_UINT32,
+                    ST4),
+    ST6 = array:set(0, RR2, ST5),
+    C1 = C - 1,
+    {I1, ST7} = random_tinymt_init_by_list32_rec1(C1, 1, K, ST6),
+    ST8 = random_tinymt_init_by_list32_rec2(?TINYMT32_SIZE, I1, ST7),
+    [V0, V1, V2, V3] = array:to_list(ST8),
+    R1 = random_tinymt_period_certification(
+        R#random_tinymt_intstate32{status0 = V0, status1 = V1,
+                       status2 = V2, status3 = V3}),
+    random_tinymt_init_rec2(0, ?TINYMT32_PRE_LOOP, R1).
+
+%%-----------------------------------------------------------------------
+
+%% compatible funtions to the random module in stdlib
+
+-spec random_tinymt
+        (seed0) -> random_tinymt_intstate32();
+        ({seed, A1, A2, A3})-> random_tinymt_intstate32() when
+            A1 :: integer(), A2 :: integer(), A3 :: integer();
+        ({uniform_s, State0}) -> {float(), State1} when
+            State0 :: random_tinymt_intstate32(), State1 :: random_tinymt_intstate32();
+        ({uniform_s, N, State0}) -> {integer(), State1} when
+            N :: pos_integer(),
+            State0 :: random_tinymt_intstate32(), State1 :: random_tinymt_intstate32().
+
+%% seed0: initial PRNG seed
+%% Set the default seed value to TinyMT state in the process directory
+%% (Compatible with random:seed0/0).
+
+random_tinymt(seed0) ->
+    #random_tinymt_intstate32{status0 = 297425621, status1 = 2108342699,
+          status2 = 4290625991, status3 = 2232209075,
+          mat1 = 2406486510, mat2 = 4235788063, tmat = 932445695};
+
+%% Set the seed value to TinyMT state in the process directory
+%% with the given three unsigned 32-bit integer arguments
+%% (Compatible with random:seed/3).
+
+random_tinymt({seed, A1, A2, A3}) ->
+    random_tinymt_init_by_list32(
+        random_tinymt(seed0),
+                [A1 band ?TINYMT32_UINT32,
+                 A2 band ?TINYMT32_UINT32,
+                 A3 band ?TINYMT32_UINT32]);
+
+%% Generate 32bit-resolution float from the given TinyMT internal state.
+%% (Note: 0.0 =&lt; result &lt; 1.0)
+%% (Compatible with random:uniform_s/1)
+
+random_tinymt({uniform_s, R0}) ->
+    R1 = random_tinymt_next_state(R0),
+    {random_tinymt_temper_float(R1), R1};
+
+%% Generate 32bit-resolution float from the given TinyMT internal state.
+%% (Note: 1 =&gt; result &lt;= MAX (given positive integer))
+
+random_tinymt({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
+    R1 = random_tinymt_next_state(R),
+    {(random_tinymt_temper(R1) rem Max) + 1, R1}.
 
