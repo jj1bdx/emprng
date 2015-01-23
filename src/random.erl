@@ -31,7 +31,7 @@
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
          random_as183/1]).
 
--define(DEFAULT_ALG_HANDLER, fun random_as183/1).
+-define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
 -define(SEED_DICT, random_seed).
 
 %% =====================================================================
@@ -41,7 +41,7 @@
 %% This depends on the algorithm handler function
 -type random_alg_state() :: any().
 %% This is the algorithm handler function within this module
--type random_alg_handler() :: function().
+-type random_alg_handler() :: fun().
 %% Internal state
 -type random_state() :: {random_alg_handler(), random_alg_state()}.
 
@@ -208,7 +208,6 @@ uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
 %%-----------------------------------------------------------------------
 
 -spec random_as183
-        (name) -> atom;
         (seed0) -> ran();
         ({seed, A1, A2, A3})-> ran() when
                 A1 :: integer(), A2 :: integer(), A3 :: integer();
@@ -216,11 +215,6 @@ uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
                 State0 :: ran(), State1 :: ran();
         ({uniform_s, N, State0}) -> {integer(), State1} when
                 N:: pos_integer(), State0 :: ran(), State1 :: ran().
-
-%% name: return name of the function
-
-random_as183(name) ->
-    random_as183;
 
 %% seed0: initial PRNG seed
 
