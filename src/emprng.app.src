@@ -1,6 +1,6 @@
 {application, emprng, [
     {description, "Erlang/OTP Multiple PRNG Suite"},
-    {vsn, "0.1.0"},
+    {vsn, "0.2.0"},
     {env, []},
     {registered, []},
     {modules,
@@ -10,7 +10,8 @@
          emprng_exs64,
          emprng_exsplus,
          emprng_sfmt,
-         emprng_tinymt
+         emprng_tinymt,
+         random
         ]},
     {applications, [kernel, stdlib]}
 ]}.
