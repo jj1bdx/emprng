@@ -120,11 +120,11 @@ temper(R) ->
     T2 bxor (R#intstate32.tmat band T1M).
 
 %% @doc Generate 32bit-resolution float from the TinyMT internal state.
-%% (Note: 0.0 =&lt; result &lt; 1.0)
+%% (Note: 0.0 &lt; result &lt; 1.0)
 -spec temper_float(intstate32()) -> float().
 
 temper_float(R) ->
-    temper(R) * (1.0 / 4294967296.0).
+    (temper(R) + 0.5) * (1.0 / 4294967296.0).
 
 -spec period_certification(intstate32()) -> intstate32().
 
@@ -316,14 +316,6 @@ uniform_s(R0) ->
 -spec uniform_s(pos_integer(), intstate32()) -> {pos_integer(), intstate32()}.
 
 uniform_s(Max, R) when is_integer(Max), Max >= 1 ->
-    Limit = ?TWOPOW32 - (?TWOPOW32 rem Max),
-    uniform_s(Max, Limit, R).
-
-uniform_s(M, L, R) ->
     R1 = next_state(R),
-    V = temper(R1),
-    case V < L of
-    true -> {(V rem M) + 1, R1};
-    false -> uniform_s(M, L, R1)
-    end.
+    {(temper(R1) rem Max) + 1, R1}.
 
