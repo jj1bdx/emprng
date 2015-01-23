@@ -29,7 +29,7 @@
 
 -export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
-         random_as183/1]).
+         random_as183/1, random_exs64/1]).
 
 -define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
 -define(SEED_DICT, random_seed).
@@ -63,6 +63,7 @@ seed0() ->
     seed0(?DEFAULT_ALG_HANDLER).
 
 %% seed0/1: returns the default state for the given algorithm handler function.
+%% usage example: seed0(fun random:random_exs64/1)
 %% (new function)
 
 -spec seed0(random_alg_handler()) -> random_state().
@@ -244,4 +245,85 @@ random_as183({uniform_s, {A1, A2, A3}}) ->
 random_as183({uniform_s, N, State0}) when is_integer(N), N >= 1 ->
     {F, State1} = random_as183({uniform_s, State0}),
     {trunc(F * N) + 1, State1}.
+
+%% =====================================================================
+%% exs64 PRNG: Xorshift*64
+%% =====================================================================
+
+%% uint64(). 64bit unsigned integer type.
+
+-type uint64() :: 0..16#ffffffffffffffff.
+
+%% random_exs64_state(). Internal state data type for exs64.
+%% Internally represented as the record <code>#state{}</code>,
+%% of the 128bit seed.
+
+-type random_exs64_state() :: uint64().
+
+-define(UINT32MASK, 16#ffffffff).
+-define(UINT64MASK, 16#ffffffffffffffff).
+
+%% Advance xorshift64star state for one step.
+%% and generate 64bit unsigned integer from
+%% the xorshift64star internal state.
+
+-spec random_exs64_next(random_exs64_state()) ->
+        {uint64(), random_exs64_state()}.
+
+random_exs64_next(R) ->
+    R1 = R bxor (R bsr 12),
+    R2 = R1 bxor ((R1 bsl 25) band ?UINT64MASK),
+    R3 = R2 bxor (R2 bsr 27),
+    {(R3 * 2685821657736338717) band ?UINT64MASK, R3}.
+
+%%-----------------------------------------------------------------------
+
+-spec random_exs64
+        (seed0) -> random_exs64_state();
+        ({seed, A1, A2, A3})-> random_exs64_state() when
+                A1 :: integer(), A2 :: integer(), A3 :: integer();
+        ({uniform_s, State0}) -> {float(), State1} when
+                State0 :: random_exs64_state(),
+                State1 :: random_exs64_state();
+        ({uniform_s, N, State0}) -> {integer(), State1} when
+                N:: pos_integer(),
+                State0 :: random_exs64_state(),
+                State1 :: random_exs64_state().
+
+%% seed0: initial PRNG seed
+%% set the default seed value to xorshift64star state
+%% in the process directory.
+
+random_exs64(seed0) -> 1234567890123456789;
+
+%% seed: seeding with three Integers
+%% set the seed value to xorshift64star state in the process directory
+%% with the given three unsigned 32-bit integer arguments
+%% Multiplicands here: three 32-bit primes
+
+random_exs64({seed, A1, A2, A3}) ->
+    {V1, _} = random_exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
+    {V2, _} = random_exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
+    {V3, _} = random_exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
+    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1;
+
+%% {uniform_s, State} -> {F, NewState}:
+%% Returns a random float between 0 and 1, and new state.
+%% Generate float from
+%% given xorshift64star internal state.
+%% (Note: 0.0 &lt; result &lt; 1.0)
+%% (Compatible with random:uniform_s/1)
+
+random_exs64({uniform_s, R0}) ->
+    {V, R1} = random_exs64_next(R0),
+    {V / 18446744073709551616.0, R1};
+
+%% {uniform_s, N, State} -> {I, NewState}
+%% Given an integer N >= 1, returns a random integer between 1 and N.
+%% Generate integer from given xorshift64star internal state.
+%% (Note: 0 =&lt; result &lt; MAX (given positive integer))
+
+random_exs64({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
+    {V, R1} = random_exs64_next(R),
+    {(V rem Max) + 1, R1}.
 
