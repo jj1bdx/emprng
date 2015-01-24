@@ -29,25 +29,24 @@
 %% NOTE: this module will replace OTP random module
 -module(random).
 
--export([seed/0, seed/1, seed/2, seed/3, seed/4,
-         seed0/0, seed0/1,
-         uniform/0, uniform/1, uniform_s/1, uniform_s/2,
-         random_as183/1, random_exs64/1, random_exsplus/1,
-         random_exs1024/1, random_sfmt/1, random_tinymt/1]).
+-export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
+         uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
--define(DEFAULT_ALG_HANDLER, fun ?MODULE:random_as183/1).
+-define(DEFAULT_ALG_HANDLER, as183).
 -define(SEED_DICT, random_seed).
+
+-record(alg, {seed0, seed, uniform, uniform_n}).
 
 %% =====================================================================
 %% Types
 %% =====================================================================
 
 %% This depends on the algorithm handler function
--type random_alg_state() :: any().
+-type alg_state() :: any().
 %% This is the algorithm handler function within this module
--type random_alg_handler() :: fun().
+-type alg_handler() :: #alg{}.
 %% Internal state
--type random_state() :: {random_alg_handler(), random_alg_state()}.
+-type state() :: {alg_handler(), alg_state()}.
 
 %% =====================================================================
 %% Wrapper functions for the algorithm handlers
@@ -61,23 +60,25 @@
 %% and the algorithm handler.
 %% (compatible with the random module)
 
--spec seed0() -> random_state().
+-spec seed0() -> state().
 
 seed0() ->
     seed0(?DEFAULT_ALG_HANDLER).
 
-%% seed0/1: returns the default state for the given algorithm handler function.
-%% usage example: seed0(fun random:random_exs64/1)
+%% seed0/1: returns the default state
+%% for the given algorithm handler name in atom.
+%% usage example: seed0(exs64)
 %% (new function)
 
--spec seed0(random_alg_handler()) -> random_state().
+-spec seed0(atom()) -> state().
 
-seed0(Alg) ->
-    {Alg, Alg(seed0)}.
+seed0(Alg0) ->
+    Alg = #alg{seed0=Seed0} = mk_alg(Alg0),
+    {Alg, Seed0()}.
 
 %% seed_put/1: internal function to put seed into the process dictionary.
 
--spec seed_put(random_state()) -> undefined | random_state().
+-spec seed_put(state()) -> undefined | state().
 
 seed_put(Seed) ->
     put(?SEED_DICT, Seed).
@@ -86,7 +87,7 @@ seed_put(Seed) ->
 %% in the process dictionary, and returns the old state.
 %% (compatible with the random module)
 
--spec seed() -> undefined | random_state().
+-spec seed() -> undefined | state().
 
 seed() ->
     case seed_put(seed0()) of
@@ -101,49 +102,40 @@ seed() ->
 %% (the 3-element tuple argument is compatible with the random module,
 %% and the 2-element tuple argument is a new function.)
 
--spec seed({Alg :: random_alg_handler(), AS :: random_alg_state()} |
+-spec seed({Alg :: alg_handler(), AS :: alg_state()} |
            {A1 :: integer(), A2 :: integer(), A3 :: integer()}) ->
-      undefined | random_state().
+      undefined | state().
 
 seed({A1, A2, A3}) ->
     seed(A1, A2, A3);
 seed({Alg, AS}) ->
     seed(Alg, AS).
 
-%% seed/2: seeds RNG with the algorithm handler and
-%% given internal state value (depending on the algorihm handler)
-%% in the process dictionary, and returns the old state.
-%% Note: the type of the values depends on the algorithm handler.
-%% (new function)
-
--spec seed(Alg :: random_alg_handler(), AS :: random_alg_state()) ->
-      undefined | random_state().
-
-seed(Alg, AS) ->
-    % No type checking on AS
-    seed_put({Alg, AS}).
-
-%% seed/4: seeds RNG with the algorithm handler and
-%% given three integers in the process dictionary,
-%% and returns the old state.
-%% (new function)
-
--spec seed(Alg :: random_alg_handler(),
-           A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
-           undefined | random_state().
-
-seed(Alg, A1, A2, A3) ->
-    seed_put({Alg, Alg({seed, A1, A2, A3})}).
-
 %% seed/3: seeds RNG with integer values in the process dictionary,
 %% and returns the old state.
 %% (compatible with the random module)
 
 -spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
-      undefined | random_state().
+      undefined | state().
 
 seed(A1, A2, A3) ->
-    seed(?DEFAULT_ALG_HANDLER, A1, A2, A3).
+    seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}).
+
+%% seed/2: seeds RNG with the algorithm handler and given values
+%% in the process dictionary, and returns the old state.
+%% Note: the type of the values depends on the algorithm handler.
+%% (new function)
+
+-spec seed(Alg :: atom() | alg_handler(), AS :: alg_state()) -> state().
+
+seed(Alg0, AS0) when is_atom(Alg0) ->
+    Alg = #alg{seed=Seed} = mk_alg(Alg0),
+    AS = Seed(AS0),
+    seed_put({Alg, AS}),
+    {Alg, AS};
+seed(Alg, AS) when is_record(Alg, alg) ->
+    seed_put({Alg, AS}),
+    {Alg, AS}.
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
 %%% uniformly distributed random numbers.
@@ -157,13 +149,8 @@ seed(A1, A2, A3) ->
 -spec uniform() -> float().
 
 uniform() ->
-    {Alg, AS} = case get(?SEED_DICT) of
-                    undefined -> seed0();
-                    % No type checking here
-                    Old -> Old
-               end,
-    {X, AS2} = Alg({uniform_s, AS}),
-    seed_put({Alg, AS2}),
+    {X, Seed} = uniform_s(seed()),
+    seed_put(Seed),
     X.
 
 %% uniform/1: given an integer N >= 1,
@@ -172,14 +159,9 @@ uniform() ->
 
 -spec uniform(N :: pos_integer()) -> pos_integer().
 
-uniform(N) when is_integer(N), N >= 1 ->
-    {Alg, AS} = case get(?SEED_DICT) of
-                    undefined -> seed0();
-                    % No type checking here
-                    Old -> Old
-               end,
-    {X, AS2} = Alg({uniform_s, N, AS}),
-    seed_put({Alg, AS2}),
+uniform(N) ->
+    {X, Seed} = uniform_s(N, seed()),
+    seed_put(Seed),
     X.
 
 %% uniform_s/1: given a state, uniform_s/1
@@ -187,22 +169,45 @@ uniform(N) when is_integer(N), N >= 1 ->
 %% and a new state.
 %% (See OTP random module.)
 
--spec uniform_s(random_state()) -> {float(), NewS :: random_state()}.
+-spec uniform_s(state()) -> {float(), NewS :: state()}.
 
-uniform_s({Alg, AS}) ->
-    {X, AS2} = Alg({uniform_s, AS}),
-    {X, {Alg, AS2}}.
+uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
+    {X, AS} = Uniform(AS0),
+    {X, {Alg, AS}}.
 
 %% uniform_s/2: given an integer N >= 1 and a state, uniform_s/2
 %% uniform_s/2 returns a random integer X where 1 =< X =< N,
 %% and a new state.
 
--spec uniform_s(N :: pos_integer(), random_state()) ->
-      {pos_integer(), NewS :: random_state()}.
+-spec uniform_s(N :: pos_integer(), state()) ->
+      {pos_integer(), NewS :: state()}.
 
-uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
-    {X, AS2} = Alg({uniform_s, N, AS}),
-    {X, {Alg, AS2}}.
+uniform_s(N, {Alg = #alg{uniform_n=Uniform}, AS0}) 
+  when is_integer(N), N >= 1 ->
+    {X, AS} = Uniform(N, AS0),
+    {X, {Alg, AS}}.
+
+
+%% Setup alg record
+mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
+    #alg{seed0=fun as183_seed0/0, seed=fun as183_seed/1, 
+	 uniform=fun as183_uniform/1, uniform_n=fun as183_uniform/2};
+mk_alg(exs64) -> 
+    #alg{seed0=fun exs64_seed0/0, seed=fun exs64_seed/1, 
+	 uniform=fun exs64_uniform/1, uniform_n=fun exs64_uniform/2};
+mk_alg(exsplus) -> 
+    #alg{seed0=fun exsplus_seed0/0, seed=fun exsplus_seed/1, 
+	 uniform=fun exsplus_uniform/1, uniform_n=fun exsplus_uniform/2};
+mk_alg(exs1024) -> 
+    #alg{seed0=fun exs1024_seed0/0, seed=fun exs1024_seed/1, 
+	 uniform=fun exs1024_uniform/1, uniform_n=fun exs1024_uniform/2};
+mk_alg(sfmt) -> 
+    #alg{seed0=fun sfmt_seed0/0, seed=fun sfmt_seed/1, 
+	 uniform=fun sfmt_uniform/1, uniform_n=fun sfmt_uniform/2};
+mk_alg(tinymt) -> 
+    #alg{seed0=fun tinymt_seed0/0, seed=fun tinymt_seed/1, 
+	 uniform=fun tinymt_uniform/1, uniform_n=fun tinymt_uniform/2}.
+
 
 %% =====================================================================
 %% AS183 PRNG
@@ -220,46 +225,37 @@ uniform_s(N, {Alg, AS}) when is_integer(N), N >= 1 ->
 %%-----------------------------------------------------------------------
 %% The type of the state
 
--type ran() :: {integer(), integer(), integer()}.
+%-type ran() :: {integer(), integer(), integer()}.
 
 %%-----------------------------------------------------------------------
 
--spec random_as183
-        (seed0) -> ran();
-        ({seed, A1, A2, A3})-> ran() when
-                A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-                State0 :: ran(), State1 :: ran();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-                N:: pos_integer(), State0 :: ran(), State1 :: ran().
-
 %% seed0: initial PRNG seed
 
-random_as183(seed0) ->
-    {3172, 9814, 20125};
+as183_seed0() ->
+    {3172, 9814, 20125}.
 
 %% seed: seeding with three Integers
 
-random_as183({seed, A1, A2, A3}) ->
+as183_seed({A1, A2, A3}) ->
     {(abs(A1) rem (?PRIME1-1)) + 1,   % Avoid seed numbers that are
-	 (abs(A2) rem (?PRIME2-1)) + 1,   % even divisors of the
-     (abs(A3) rem (?PRIME3-1)) + 1};  % corresponding primes.
+     (abs(A2) rem (?PRIME2-1)) + 1,   % even divisors of the
+     (abs(A3) rem (?PRIME3-1)) + 1}.  % corresponding primes.
 
 %% {uniform_s, State} -> {F, NewState}:
 %%  Returns a random float between 0 and 1, and new state.
 
-random_as183({uniform_s, {A1, A2, A3}}) ->
+as183_uniform({A1, A2, A3}) ->
     B1 = (A1*171) rem ?PRIME1,
     B2 = (A2*172) rem ?PRIME2,
     B3 = (A3*170) rem ?PRIME3,
     R = B1/?PRIME1 + B2/?PRIME2 + B3/?PRIME3,
-    {R - trunc(R), {B1,B2,B3}};
+    {R - trunc(R), {B1,B2,B3}}.
 
 %% {uniform_s, N, State} -> {I, NewState}
 %%  Given an integer N >= 1, returns a random integer between 1 and N.
 
-random_as183({uniform_s, N, State0}) when is_integer(N), N >= 1 ->
-    {F, State1} = random_as183({uniform_s, State0}),
+as183_uniform(N, State0) ->
+    {F, State1} = as183_uniform(State0),
     {trunc(F * N) + 1, State1}.
 
 %% =====================================================================
@@ -272,11 +268,11 @@ random_as183({uniform_s, N, State0}) when is_integer(N), N >= 1 ->
 
 -type uint64() :: 0..16#ffffffffffffffff.
 
-%% random_exs64_state(). Internal state data type for exs64.
+%% exs64_state(). Internal state data type for exs64.
 %% Internally represented as the record <code>#state{}</code>,
 %% of the 128bit seed.
 
--type random_exs64_state() :: uint64().
+-type exs64_state() :: uint64().
 
 -define(UINT32MASK, 16#ffffffff).
 -define(UINT64MASK, 16#ffffffffffffffff).
@@ -285,10 +281,10 @@ random_as183({uniform_s, N, State0}) when is_integer(N), N >= 1 ->
 %% and generate 64bit unsigned integer from
 %% the xorshift64star internal state.
 
--spec random_exs64_next(random_exs64_state()) ->
-        {uint64(), random_exs64_state()}.
+-spec exs64_next(exs64_state()) ->
+        {uint64(), exs64_state()}.
 
-random_exs64_next(R) ->
+exs64_next(R) ->
     R1 = R bxor (R bsr 12),
     R2 = R1 bxor ((R1 bsl 25) band ?UINT64MASK),
     R3 = R2 bxor (R2 bsr 27),
@@ -296,34 +292,22 @@ random_exs64_next(R) ->
 
 %%-----------------------------------------------------------------------
 
--spec random_exs64
-        (seed0) -> random_exs64_state();
-        ({seed, A1, A2, A3})-> random_exs64_state() when
-                A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-                State0 :: random_exs64_state(),
-                State1 :: random_exs64_state();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-                N:: pos_integer(),
-                State0 :: random_exs64_state(),
-                State1 :: random_exs64_state().
-
 %% seed0: initial PRNG seed
 %% set the default seed value to xorshift64star state
 %% in the process directory.
 
-random_exs64(seed0) -> 1234567890123456789;
+exs64_seed0() -> 1234567890123456789.
 
 %% seed: seeding with three Integers
 %% set the seed value to xorshift64star state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here: three 32-bit primes
 
-random_exs64({seed, A1, A2, A3}) ->
-    {V1, _} = random_exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
-    {V2, _} = random_exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
-    {V3, _} = random_exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
-    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1;
+exs64_seed({A1, A2, A3}) ->
+    {V1, _} = exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
+    {V2, _} = exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
+    {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
+    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
 
 %% {uniform_s, State} -> {F, NewState}:
 %% Generate float from
@@ -331,16 +315,16 @@ random_exs64({seed, A1, A2, A3}) ->
 %% (Note: 0.0 &lt; result &lt; 1.0)
 %% (Compatible with random:uniform_s/1)
 
-random_exs64({uniform_s, R0}) ->
-    {V, R1} = random_exs64_next(R0),
-    {V / 18446744073709551616.0, R1};
+exs64_uniform(R0) ->
+    {V, R1} = exs64_next(R0),
+    {V / 18446744073709551616.0, R1}.
 
 %% {uniform_s, N, State} -> {I, NewState}:
 %% Generate integer from given xorshift64star internal state.
 %% (Note: 0 =&lt; result &lt; MAX (given positive integer))
 
-random_exs64({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
-    {V, R1} = random_exs64_next(R),
+exs64_uniform(Max, R) ->
+    {V, R1} = exs64_next(R),
     {(V rem Max) + 1, R1}.
 
 %% =====================================================================
@@ -349,82 +333,69 @@ random_exs64({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
 %% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
 
-%% random_exsplus_state(). Internal state data type for exsplus.
+%% exsplus_state(). Internal state data type for exsplus.
 %% Internally represented as the record <code>#state{}</code>,
 %% of the 128bit seed.
 
--record(random_exsplus_state, {s0 :: uint64(), s1 :: uint64()}).
+-record(exsplus_state, {s0 :: uint64(), s1 :: uint64()}).
 
--type random_exsplus_state() :: #random_exsplus_state{}.
+-type exsplus_state() :: #exsplus_state{}.
 
 %% Advance xorshift128plus state for one step.
 %% and generate 64bit unsigned integer from
 %% the xorshift128plus internal state.
 
--spec random_exsplus_next(random_exsplus_state()) ->
-    {uint64(), random_exsplus_state()}.
+-spec exsplus_next(exsplus_state()) ->
+    {uint64(), exsplus_state()}.
 
-random_exsplus_next(R) ->
-    S1 = R#random_exsplus_state.s0,
-    S0 = R#random_exsplus_state.s1,
+exsplus_next(R) ->
+    S1 = R#exsplus_state.s0,
+    S0 = R#exsplus_state.s1,
     S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
     S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
     {(S0 + S12) band ?UINT64MASK,
-        #random_exsplus_state{s0 = S0, s1 = S12}}.
+        #exsplus_state{s0 = S0, s1 = S12}}.
 
 %%-----------------------------------------------------------------------
-
--spec random_exsplus
-        (seed0) -> random_exsplus_state();
-        ({seed, A1, A2, A3})-> random_exsplus_state() when
-                A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-                State0 :: random_exsplus_state(),
-                State1 :: random_exsplus_state();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-                N:: pos_integer(),
-                State0 :: random_exsplus_state(),
-                State1 :: random_exsplus_state().
 
 %% seed0: initial PRNG seed
 %% Set the default seed value to xorshift128plus state
 %% in the process directory
 
-random_exsplus(seed0) ->
-    #random_exsplus_state{
-        s0 = 1234567890123456789, s1 = 9876543210987654321};
+exsplus_seed0() ->
+    #exsplus_state{s0 = 1234567890123456789, s1 = 9876543210987654321}.
 
 %% seed: seeding with three Integers
 %% Set the seed value to xorshift128plus state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here: three 32-bit primes
 
-random_exsplus({seed, A1, A2, A3}) ->
-    {_, R1} = random_exsplus_next(
-               #random_exsplus_state{
+exsplus_seed({A1, A2, A3}) ->
+    {_, R1} = exsplus_next(
+               #exsplus_state{
                    s0 = (((A1 * 4294967197) + 1) band ?UINT64MASK),
                    s1 = (((A2 * 4294967231) + 1) band ?UINT64MASK)}),
-    {_, R2} = random_exsplus_next(
-               #random_exsplus_state{
+    {_, R2} = exsplus_next(
+               #exsplus_state{
                    s0 = (((A3 * 4294967279) + 1) band ?UINT64MASK),
-                   s1 = R1#random_exsplus_state.s1}),
-    R2;
+                   s1 = R1#exsplus_state.s1}),
+    R2.
 
 %% {uniform_s, State} -> {F, NewState}:
 %% Generate float from
 %% given xorshift128plus internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
 
-random_exsplus({uniform_s, R0}) ->
-    {I, R1} = random_exsplus_next(R0),
-    {I / 18446744073709551616.0, R1};
+exsplus_uniform(R0) ->
+    {I, R1} = exsplus_next(R0),
+    {I / 18446744073709551616.0, R1}.
 
 %% {uniform_s, N, State} -> {I, NewState}:
 %% Generate integer from given xorshift128plus internal state.
 %% (Note: 0 =&lt; result &lt; MAX (given positive integer))
 
-random_exsplus({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
-    {V, R1} = random_exsplus_next(R),
+exsplus_uniform(Max, R) ->
+    {V, R1} = exsplus_next(R),
     {(V rem Max) + 1, R1}.
 
 %% =====================================================================
@@ -433,19 +404,19 @@ random_exsplus({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
 %% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
 
-%% random_exs1024_state(). Internal state data type for exs1024.
+%% exs1024_state(). Internal state data type for exs1024.
 %% Representing 16 64-bit numbers with a pair of
 %% the list and a reverse list.
 
--type random_exs1024_state() :: {list(uint64()), list(uint64())}.
+-type exs1024_state() :: {list(uint64()), list(uint64())}.
 
 %% Calculation of xorshift1024star.
-%% random_exs1024_calc(S0, S1) -> {X, NS1}.
+%% exs1024_calc(S0, S1) -> {X, NS1}.
 %% X: random number output
 
--spec random_exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
+-spec exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
 
-random_exs1024_calc(S0, S1) ->
+exs1024_calc(S0, S1) ->
     S11 = S1 bxor ((S1 bsl 31) band ?UINT64MASK),
     S12 = S11 bxor (S11 bsr 11),
     S01 = S0 bxor (S0 bsr 30),
@@ -456,50 +427,38 @@ random_exs1024_calc(S0, S1) ->
 %% and generate 64bit unsigned integer from
 %% the xorshift1024star internal state.
 
--spec random_exs1024_next(random_exs1024_state()) ->
-        {uint64(), random_exs1024_state()}.
+-spec exs1024_next(exs1024_state()) ->
+        {uint64(), exs1024_state()}.
 
-random_exs1024_next({[H], RL}) ->
-    random_exs1024_next({[H|lists:reverse(RL)], []});
-random_exs1024_next({L, RL}) ->
+exs1024_next({[H], RL}) ->
+    exs1024_next({[H|lists:reverse(RL)], []});
+exs1024_next({L, RL}) ->
     [S0|L2] = L,
     [S1|L3] = L2,
-    {X, NS1} = random_exs1024_calc(S0, S1),
+    {X, NS1} = exs1024_calc(S0, S1),
     {X, {[NS1|L3], [S0|RL]}}.
 
 %% Generate a list of 16 64-bit element list
 %% of the xorshift64star random sequence
 %% from a given 64-bit seed.
-%% Note: dependent on random_exs64_next/1
+%% Note: dependent on exs64_next/1
 
--spec random_exs1024_gen1024(uint64()) -> list(uint64()).
+-spec exs1024_gen1024(uint64()) -> list(uint64()).
 
-random_exs1024_gen1024(R) ->
-        random_exs1024_gen1024(16, R, []).
+exs1024_gen1024(R) ->
+        exs1024_gen1024(16, R, []).
 
--spec random_exs1024_gen1024(
+-spec exs1024_gen1024(
         non_neg_integer(), uint64(), list(uint64())) ->
             list(uint64()).
 
-random_exs1024_gen1024(0, _, L) ->
+exs1024_gen1024(0, _, L) ->
     L;
-random_exs1024_gen1024(N, R, L) ->
-    {X, R2} = random_exs64_next(R),
-    random_exs1024_gen1024(N - 1, R2, [X|L]).
+exs1024_gen1024(N, R, L) ->
+    {X, R2} = exs64_next(R),
+    exs1024_gen1024(N - 1, R2, [X|L]).
 
 %%-----------------------------------------------------------------------
-
--spec random_exs1024
-        (seed0) -> random_exs1024_state();
-        ({seed, A1, A2, A3})-> random_exs1024_state() when
-                A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-                State0 :: random_exs1024_state(),
-                State1 :: random_exs1024_state();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-                N:: pos_integer(),
-                State0 :: random_exs1024_state(),
-                State1 :: random_exs1024_state().
 
 -define(UINT21MASK, 16#1fffff).
 
@@ -507,7 +466,7 @@ random_exs1024_gen1024(N, R, L) ->
 %% Set the default seed value to xorshift1024star state
 %% in the process directory (Compatible with random:seed0/0).
 
-random_exs1024(seed0) ->
+exs1024_seed0() ->
     {
      [
       16#0123456789abcdef,
@@ -526,7 +485,7 @@ random_exs1024(seed0) ->
       16#def0123456789abc,
       16#ef0123456789abcd,
       16#f0123456789abcde
-     ], []};
+     ], []}.
 
 %% seed: seeding with three Integers
 %% Set the seed value to xorshift1024star state in the process directory
@@ -534,28 +493,28 @@ random_exs1024(seed0) ->
 %% Multiplicands here: three 21-bit primes.
 %% TODO: this seeding has a room to improve.
 
-random_exs1024({seed, A1, A2, A3}) ->
+exs1024_seed({A1, A2, A3}) ->
     B1 = (((A1 band ?UINT21MASK) + 1) * 2097131) band ?UINT21MASK,
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
     B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
-    {random_exs1024_gen1024(
-            (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []};
+    {exs1024_gen1024(
+            (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
 
 %% {uniform_s, State} -> {F, NewState}:
 %% Generate float from
 %% given xorshift1024star internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
 
-random_exs1024({uniform_s, R0}) ->
-    {V, R1} = random_exs1024_next(R0),
-    {V / 18446744073709551616.0, R1};
+exs1024_uniform(R0) ->
+    {V, R1} = exs1024_next(R0),
+    {V / 18446744073709551616.0, R1}.
 
 %% {uniform_s, N, State} -> {I, NewState}:
 %% @doc Generate integer from given xorshift1024star internal state.
 %% (Note: 0 =&lt; result &lt; MAX (given positive integer))
 
-random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
-    {V, R1} = random_exs1024_next(R),
+exs1024_uniform(Max, R) ->
+    {V, R1} = exs1024_next(R),
     {(V rem Max) + 1, R1}.
 
 %% =====================================================================
@@ -630,7 +589,7 @@ random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
 
 -type w128() :: [integer()].
 
-%% type random_sfmt_intstate().
+%% type sfmt_intstate().
 %% N-element list of 128-bit unsigned integers,
 %% represented as a four-element list of 32-bit integers.
 %% The number of N is 156.
@@ -646,20 +605,20 @@ random_exs1024({uniform_s,Max, R}) when is_integer(Max), Max >= 1 ->
 %% '''
 %% And the 128-bit list is a flat concatenation of 128-bit number lists,
 
--type random_sfmt_intstate() :: [integer()].
+-type sfmt_intstate() :: [integer()].
 
 %% type ran_sfmt(). N-element list of 128-bit unsigned integers,
 %% represented as a list of 32-bit integers. The number of N is 156.
 
--type ran_sfmt() :: {[integer()], random_sfmt_intstate()}.
+-type ran_sfmt() :: {[integer()], sfmt_intstate()}.
 
 
 %% SIMD 128-bit right shift simulation for little endian SIMD
 %% of Shift*8 bits.
 
--spec random_sfmt_rshift128(w128(), integer()) -> w128().
+-spec sfmt_rshift128(w128(), integer()) -> w128().
 
-random_sfmt_rshift128(In, Shift) ->
+sfmt_rshift128(In, Shift) ->
     [I0, I1, I2, I3] = In,
     TH = (I3 bsl 32) bor (I2),
     TL = (I1 bsl 32) bor (I0),
@@ -672,9 +631,9 @@ random_sfmt_rshift128(In, Shift) ->
 %% SIMD 128-bit left shift simulation for little endian SIMD
 %% of Shift*8 bits.
 
--spec random_sfmt_lshift128(w128(), integer()) -> w128().
+-spec sfmt_lshift128(w128(), integer()) -> w128().
 
-random_sfmt_lshift128(In, Shift) ->
+sfmt_lshift128(In, Shift) ->
     [I0, I1, I2, I3] = In,
     TH = (I3 bsl 32) bor (I2),
     TL = (I1 bsl 32) bor (I0),
@@ -686,15 +645,15 @@ random_sfmt_lshift128(In, Shift) ->
 
 %% The recursion formula operation of SFMT.
 
--spec random_sfmt_do_recursion(w128(), w128(), w128(), w128()) -> w128().
+-spec sfmt_do_recursion(w128(), w128(), w128(), w128()) -> w128().
 
-random_sfmt_do_recursion(A, B, C, D) ->
+sfmt_do_recursion(A, B, C, D) ->
     [A0, A1, A2, A3] = A,
     [B0, B1, B2, B3] = B,
     % [C0, C1, C2, C3] = C,
     [D0, D1, D2, D3] = D,
-    [X0, X1, X2, X3] = random_sfmt_lshift128(A, ?SL2),
-    [Y0, Y1, Y2, Y3] = random_sfmt_rshift128(C, ?SR2),
+    [X0, X1, X2, X3] = sfmt_lshift128(A, ?SL2),
+    [Y0, Y1, Y2, Y3] = sfmt_rshift128(C, ?SR2),
     [
      A0 bxor X0 bxor ((B0 bsr ?SR1) band ?MSK1) bxor Y0
         bxor ((D0 bsl ?SL1) band ?BITMASK32),
@@ -706,33 +665,33 @@ random_sfmt_do_recursion(A, B, C, D) ->
         bxor ((D3 bsl ?SL1) band ?BITMASK32)
      ].
 
--spec random_sfmt_gen_rand_recursion(non_neg_integer(),
+-spec sfmt_gen_rand_recursion(non_neg_integer(),
     [integer()], [integer()], [integer()],
     [integer()], [integer()], w128(), w128()) -> [integer()].
 
-random_sfmt_gen_rand_recursion(0, Acc, _, _, _, _, _, _) ->
+sfmt_gen_rand_recursion(0, Acc, _, _, _, _, _, _) ->
     lists:reverse(Acc);
-random_sfmt_gen_rand_recursion(K, Acc, Int, AccInt, [], AccIntP, R, Q) ->
-    random_sfmt_gen_rand_recursion(K, Acc, Int, AccInt,
+sfmt_gen_rand_recursion(K, Acc, Int, AccInt, [], AccIntP, R, Q) ->
+    sfmt_gen_rand_recursion(K, Acc, Int, AccInt,
 		       lists:reverse(AccIntP),
 		       [],
 		       R, Q);
-random_sfmt_gen_rand_recursion(K, Acc, [], AccInt, IntP, AccIntP, R, Q) ->
-    random_sfmt_gen_rand_recursion(K, Acc,
+sfmt_gen_rand_recursion(K, Acc, [], AccInt, IntP, AccIntP, R, Q) ->
+    sfmt_gen_rand_recursion(K, Acc,
 		       lists:reverse(AccInt),
 		       [],
 		       IntP, AccIntP, R, Q);
-random_sfmt_gen_rand_recursion(K, Acc, Int,
+sfmt_gen_rand_recursion(K, Acc, Int,
 		   AccInt, IntP, AccIntP,
 		   [R0, R1, R2, R3],
 		   [Q0, Q1, Q2, Q3]) ->
     [A0, A1, A2, A3 | IntN ] = Int,
     [B0, B1, B2, B3 | IntPN ] = IntP,
-    [X0, X1, X2, X3] = random_sfmt_do_recursion([A0, A1, A2, A3],
+    [X0, X1, X2, X3] = sfmt_do_recursion([A0, A1, A2, A3],
 				    [B0, B1, B2, B3],
 				    [R0, R1, R2, R3],
 				    [Q0, Q1, Q2, Q3]),
-    random_sfmt_gen_rand_recursion(K - 4,
+    sfmt_gen_rand_recursion(K - 4,
 		       [X3 | [X2 | [X1 | [X0 | Acc]]]],
 		       IntN,
 		       [X3 | [X2 | [X1 | [X0 | AccInt]]]],
@@ -743,37 +702,37 @@ random_sfmt_gen_rand_recursion(K, Acc, Int,
 
 %% filling the internal state array with SFMT PRNG
 
--spec random_sfmt_gen_rand_all(random_sfmt_intstate()) ->
-        random_sfmt_intstate().
+-spec sfmt_gen_rand_all(sfmt_intstate()) ->
+        sfmt_intstate().
 
-random_sfmt_gen_rand_all(Int) ->
+sfmt_gen_rand_all(Int) ->
     [T3, T2, T1, T0, S3, S2, S1, S0 | _] = lists:reverse(Int),
-    random_sfmt_gen_rand_recursion(?N32, [], Int, [],
+    sfmt_gen_rand_recursion(?N32, [], Int, [],
 		       lists:nthtail(?POS1 * 4, Int), [],
 		       [S0, S1, S2, S3], [T0, T1, T2, T3]).
 
-random_sfmt_period_modification_rec1(Parity, I) ->
-    random_sfmt_period_modification_rec1(0, Parity, I).
+sfmt_period_modification_rec1(Parity, I) ->
+    sfmt_period_modification_rec1(0, Parity, I).
 
-random_sfmt_period_modification_rec1(true, _, I) ->
+sfmt_period_modification_rec1(true, _, I) ->
     {I, true};
-random_sfmt_period_modification_rec1(32, _, I) ->
+sfmt_period_modification_rec1(32, _, I) ->
     {I, false};
-random_sfmt_period_modification_rec1(X, Parity, I) ->
+sfmt_period_modification_rec1(X, Parity, I) ->
     Work = 1 bsl X,
     case (Work band Parity =/= 0) of
 	true ->
-	    random_sfmt_period_modification_rec1(true, Parity, I bxor Work);
+	    sfmt_period_modification_rec1(true, Parity, I bxor Work);
 	false ->
-	    random_sfmt_period_modification_rec1(X + 1, Parity, I)
+	    sfmt_period_modification_rec1(X + 1, Parity, I)
     end.
 
-random_sfmt_period_modification(Int) ->
+sfmt_period_modification(Int) ->
     [I0, I1, I2, I3 | IR ] = Int,
-    {NI0, F0} = random_sfmt_period_modification_rec1(?PARITY1, I0),
-    {NI1, F1} = random_sfmt_period_modification_rec1(?PARITY2, I1),
-    {NI2, F2} = random_sfmt_period_modification_rec1(?PARITY3, I2),
-    {NI3, F3} = random_sfmt_period_modification_rec1(?PARITY4, I3),
+    {NI0, F0} = sfmt_period_modification_rec1(?PARITY1, I0),
+    {NI1, F1} = sfmt_period_modification_rec1(?PARITY2, I1),
+    {NI2, F2} = sfmt_period_modification_rec1(?PARITY3, I2),
+    {NI3, F3} = sfmt_period_modification_rec1(?PARITY4, I3),
     % F[0-3] are true or false
     if
 	F0 ->
@@ -788,7 +747,7 @@ random_sfmt_period_modification(Int) ->
 	    Int
     end.
 
-random_sfmt_period_certification(Int) ->
+sfmt_period_certification(Int) ->
     [I0, I1, I2, I3 | _ ] = Int,
     In0 = (I0 band ?PARITY1) bxor
 	(I1 band ?PARITY2) bxor
@@ -804,36 +763,36 @@ random_sfmt_period_certification(Int) ->
 	1 ->
 	    Int;
 	0 ->
-	    random_sfmt_period_modification(Int)
+	    sfmt_period_modification(Int)
     end.
 
-random_sfmt_func1(X) ->
+sfmt_func1(X) ->
     ((X bxor (X bsr 27)) * 1664525) band ?BITMASK32.
 
-random_sfmt_func2(X) ->
+sfmt_func2(X) ->
     ((X bxor (X bsr 27)) * 1566083941) band ?BITMASK32.
 
-random_sfmt_init_gen_rand_rec1(?N32, Acc) ->
+sfmt_init_gen_rand_rec1(?N32, Acc) ->
     lists:reverse(Acc);
-random_sfmt_init_gen_rand_rec1(I, Acc) ->
+sfmt_init_gen_rand_rec1(I, Acc) ->
     [H | _] = Acc,
-    random_sfmt_init_gen_rand_rec1(
+    sfmt_init_gen_rand_rec1(
       I + 1,
       [((1812433253 * (H bxor (H bsr 30))) + I) band ?BITMASK32 | Acc]).
 
 %% @doc generates an internal state from an integer seed
 
--spec random_sfmt_init_gen_rand(integer()) ->
-        random_sfmt_intstate().
+-spec sfmt_init_gen_rand(integer()) ->
+        sfmt_intstate().
 
-random_sfmt_init_gen_rand(Seed) ->
-    random_sfmt_period_certification(
-        random_sfmt_init_gen_rand_rec1(1, [Seed])).
+sfmt_init_gen_rand(Seed) ->
+    sfmt_period_certification(
+        sfmt_init_gen_rand_rec1(1, [Seed])).
 
-random_sfmt_init_by_list32_rec1(0, I, _, A) ->
+sfmt_init_by_list32_rec1(0, I, _, A) ->
     {I, A};
-random_sfmt_init_by_list32_rec1(K, I, [], A) ->
-    R = random_sfmt_func1(array:get(I, A) bxor
+sfmt_init_by_list32_rec1(K, I, [], A) ->
+    R = sfmt_func1(array:get(I, A) bxor
 		  array:get((I + ?MID) rem ?N32, A) bxor
 		  array:get((I + ?N32 - 1) rem ?N32, A)),
     A2 = array:set((I + ?MID) rem ?N32,
@@ -845,9 +804,9 @@ random_sfmt_init_by_list32_rec1(K, I, [], A) ->
 		 A2),
     A4 = array:set(I, R2, A3),
     I2 = (I + 1) rem ?N32,
-    random_sfmt_init_by_list32_rec1(K - 1, I2, [], A4);
-random_sfmt_init_by_list32_rec1(K, I, Key, A) ->
-    R = random_sfmt_func1(array:get(I, A) bxor
+    sfmt_init_by_list32_rec1(K - 1, I2, [], A4);
+sfmt_init_by_list32_rec1(K, I, Key, A) ->
+    R = sfmt_func1(array:get(I, A) bxor
 		  array:get((I + ?MID) rem ?N32, A) bxor
 		  array:get((I + ?N32 - 1) rem ?N32, A)),
     A2 = array:set((I + ?MID) rem ?N32,
@@ -860,12 +819,12 @@ random_sfmt_init_by_list32_rec1(K, I, Key, A) ->
 		   A2),
     A4 = array:set(I, R2, A3),
     I2 = (I + 1) rem ?N32,
-    random_sfmt_init_by_list32_rec1(K - 1, I2, T, A4).
+    sfmt_init_by_list32_rec1(K - 1, I2, T, A4).
 
-random_sfmt_init_by_list32_rec2(0, _, A) ->
+sfmt_init_by_list32_rec2(0, _, A) ->
     A;
-random_sfmt_init_by_list32_rec2(K, I, A) ->
-    R = random_sfmt_func2((array:get(I, A) +
+sfmt_init_by_list32_rec2(K, I, A) ->
+    R = sfmt_func2((array:get(I, A) +
 		  array:get((I + ?MID) rem ?N32, A) +
 		  array:get((I + ?N32 - 1) rem ?N32, A)) band ?BITMASK32),
     A2 = array:set((I + ?MID) rem ?N32,
@@ -877,14 +836,14 @@ random_sfmt_init_by_list32_rec2(K, I, A) ->
 		   A2),
     A4 = array:set(I, R2, A3),
     I2 = (I + 1) rem ?N32,
-    random_sfmt_init_by_list32_rec2(K - 1, I2, A4).
+    sfmt_init_by_list32_rec2(K - 1, I2, A4).
 
 %% generates an internal state from a list of 32-bit integers
 
--spec random_sfmt_init_by_list32([integer()]) ->
-    random_sfmt_intstate().
+-spec sfmt_init_by_list32([integer()]) ->
+    sfmt_intstate().
 
-random_sfmt_init_by_list32(Key) ->
+sfmt_init_by_list32(Key) ->
     Keylength = length(Key),
 
     A = array:new(?N32, {default, 16#8b8b8b8b}),
@@ -896,7 +855,7 @@ random_sfmt_init_by_list32(Key) ->
 	    true ->
 		?N32
 	end,
-    R = random_sfmt_func1(array:get(0, A) bxor
+    R = sfmt_func1(array:get(0, A) bxor
 		  array:get(?MID, A) bxor
 		  array:get(?N32 - 1, A)),
     A2 = array:set(?MID,
@@ -909,56 +868,44 @@ random_sfmt_init_by_list32(Key) ->
     A4 = array:set(0, R2, A3),
 
     Count1 = Count - 1,
-    {I1, A5} = random_sfmt_init_by_list32_rec1(Count1, 1, Key, A4),
+    {I1, A5} = sfmt_init_by_list32_rec1(Count1, 1, Key, A4),
 
-    random_sfmt_period_certification(
-      array:to_list(random_sfmt_init_by_list32_rec2(?N32, I1, A5))).
+    sfmt_period_certification(
+      array:to_list(sfmt_init_by_list32_rec2(?N32, I1, A5))).
 
-%% Note: ran_sfmt() -> {[integer()], random_sfmt_intstate()}
+%% Note: ran_sfmt() -> {[integer()], sfmt_intstate()}
 
 %% generates a 32-bit random number from the given ran_sfmt()
 
--spec random_sfmt_gen_rand32
-        (random_sfmt_intstate()) -> {integer(), ran_sfmt()};
+-spec sfmt_gen_rand32
+        (sfmt_intstate()) -> {integer(), ran_sfmt()};
         (ran_sfmt()) -> {integer(), ran_sfmt()}.
 
-random_sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?N32 ->
-    % when random_sfmt_intstate() is directly passed
-    % note: given random_sfmt_intstate() is
+sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?N32 ->
+    % when sfmt_intstate() is directly passed
+    % note: given sfmt_intstate() is
     %       re-initialized by gen_rand_all/1
-    L2 = random_sfmt_gen_rand_all(L),
+    L2 = sfmt_gen_rand_all(L),
     [H|T] = L2,
     {H, {T, L2}};
-random_sfmt_gen_rand32({[], I}) ->
-    I2 = random_sfmt_gen_rand_all(I),
-    % this operation is random_sfmt_intstate() type dependent
+sfmt_gen_rand32({[], I}) ->
+    I2 = sfmt_gen_rand_all(I),
+    % this operation is sfmt_intstate() type dependent
     [H|T] = I2,
     {H, {T, I2}};
-random_sfmt_gen_rand32({R, I}) ->
+sfmt_gen_rand32({R, I}) ->
     [H|T] = R,
     {H, {T, I}}.
 
 %%-----------------------------------------------------------------------
 
-%% compatible funtions to the random module in stdlib
-
--spec random_sfmt
-        (seed0) -> ran_sfmt();
-        ({seed, A1, A2, A3})-> ran_sfmt() when
-            A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-            State0 :: ran_sfmt(), State1 :: ran_sfmt();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-            N :: pos_integer(),
-            State0 :: ran_sfmt(), State1 :: ran_sfmt().
-
 %% seed0: initial PRNG seed
 %% Returns the default internal state
 
-random_sfmt(seed0) ->
-    I = random_sfmt_init_gen_rand(1234),
-    % this operation is random_sfmt_intstate() type dependent
-    {I, I};
+sfmt_seed0() ->
+    I = sfmt_init_gen_rand(1234),
+    % this operation is sfmt_intstate() type dependent
+    {I, I}.
 
 %% seed: seeding with three Integers
 %% Puts the seed computed from the given integer list by init_by_list32/1
@@ -966,29 +913,29 @@ random_sfmt(seed0) ->
 %% and initializes the random number list with the internal state
 %% and returns the old internal state (internal use only)
 
-random_sfmt({seed, A1, A2, A3}) ->
-    I = random_sfmt_init_by_list32([
+sfmt_seed({A1, A2, A3}) ->
+    I = sfmt_init_by_list32([
             (A1 + 1) rem 4294967295,
             (A2 + 1) rem 4294967295,
             (A3 + 1) rem 4294967295]),
-    % this operation is random_sfmt_intstate() type dependent
-    {I, I};
+    % this operation is sfmt_intstate() type dependent
+    {I, I}.
 
 %% With a given state,
 %% Returns a uniformly-distributed float random number X
 %% where `(X > 0.0)' and `(X < 1.0)'
 %% and a new state
 
-random_sfmt({uniform_s, RS}) ->
-    {X, NRS} = random_sfmt_gen_rand32(RS),
-    {(X + 0.5) * (1.0/4294967296.0), NRS};
+sfmt_uniform(RS) ->
+    {X, NRS} = sfmt_gen_rand32(RS),
+    {(X + 0.5) * (1.0/4294967296.0), NRS}.
 
 %% Returns a uniformly-distributed integer random number X
 %% where (X >= 1) and (X =< N)
 %% and a new state
 
-random_sfmt({uniform_s, N, RS}) ->
-    {X, NRS} = random_sfmt_gen_rand32(RS),
+sfmt_uniform(N, RS) ->
+    {X, NRS} = sfmt_gen_rand32(RS),
     {trunc(X * (1.0/4294967296.0) * N) + 1, NRS}.
 
 %% =====================================================================
@@ -1002,7 +949,7 @@ random_sfmt({uniform_s, N, RS}) ->
 
 -type uint32() :: 0..16#ffffffff.
 
--record(random_tinymt_intstate32,
+-record(tinymt_intstate32,
 	{status0 :: uint32(),
 	 status1 :: uint32(),
 	 status2 :: uint32(),
@@ -1011,12 +958,12 @@ random_sfmt({uniform_s, N, RS}) ->
 	 mat2 :: uint32(),
 	 tmat :: uint32()}).
 
-%% type random_tinymt_intstate32(). Internal state data type for TinyMT.
+%% type tinymt_intstate32(). Internal state data type for TinyMT.
 %% Internally represented as the record <code>#intstate32{}</code>,
 %% including the 127bit seed and 96bit polynomial data.
 
--type random_tinymt_intstate32() ::
-        #random_tinymt_intstate32{}.
+-type tinymt_intstate32() ::
+        #tinymt_intstate32{}.
 
 -define(TINYMT32_SH0, 1).
 -define(TINYMT32_SH1, 10).
@@ -1036,95 +983,95 @@ random_sfmt({uniform_s, N, RS}) ->
 %% Note: running temper function is required
 %% to obtain the actual random number.
 
--spec random_tinymt_next_state(random_tinymt_intstate32()) ->
-        random_tinymt_intstate32().
+-spec tinymt_next_state(tinymt_intstate32()) ->
+        tinymt_intstate32().
 
-random_tinymt_next_state(R) ->
-    Y0 = R#random_tinymt_intstate32.status3,
-    X0 = R#random_tinymt_intstate32.status0
-         bxor R#random_tinymt_intstate32.status1
-         bxor R#random_tinymt_intstate32.status2,
+tinymt_next_state(R) ->
+    Y0 = R#tinymt_intstate32.status3,
+    X0 = R#tinymt_intstate32.status0
+         bxor R#tinymt_intstate32.status1
+         bxor R#tinymt_intstate32.status2,
     X1 = (X0 bxor (X0 bsl ?TINYMT32_SH0)) band ?TINYMT32_UINT32,
     Y1 = Y0 bxor (Y0 bsr ?TINYMT32_SH0) bxor X1,
-    S0 = R#random_tinymt_intstate32.status1,
-    S10 = R#random_tinymt_intstate32.status2,
+    S0 = R#tinymt_intstate32.status1,
+    S10 = R#tinymt_intstate32.status2,
     S20 = (X1 bxor (Y1 bsl ?TINYMT32_SH1)) band ?TINYMT32_UINT32,
     S3 = Y1,
     Y1M = (-(Y1 band 1)) band ?TINYMT32_UINT32,
-    S1 = S10 bxor (R#random_tinymt_intstate32.mat1 band Y1M),
-    S2 = S20 bxor (R#random_tinymt_intstate32.mat2 band Y1M),
-    R#random_tinymt_intstate32{
+    S1 = S10 bxor (R#tinymt_intstate32.mat1 band Y1M),
+    S2 = S20 bxor (R#tinymt_intstate32.mat2 band Y1M),
+    R#tinymt_intstate32{
         status0 = S0, status1 = S1, status2 = S2, status3 = S3}.
 
 %% Generate 32bit unsigned integer from the TinyMT internal state.
 
--spec random_tinymt_temper(random_tinymt_intstate32()) -> uint32().
+-spec tinymt_temper(tinymt_intstate32()) -> uint32().
 
-random_tinymt_temper(R) ->
-    T0 = R#random_tinymt_intstate32.status3,
-    T1 = (R#random_tinymt_intstate32.status0 +
-         (R#random_tinymt_intstate32.status2 bsr ?TINYMT32_SH8))
+tinymt_temper(R) ->
+    T0 = R#tinymt_intstate32.status3,
+    T1 = (R#tinymt_intstate32.status0 +
+         (R#tinymt_intstate32.status2 bsr ?TINYMT32_SH8))
           band ?TINYMT32_UINT32,
     T2 = T0 bxor T1,
     T1M = (-(T1 band 1)) band ?TINYMT32_UINT32,
-    T2 bxor (R#random_tinymt_intstate32.tmat band T1M).
+    T2 bxor (R#tinymt_intstate32.tmat band T1M).
 
 %% Generate 32bit-resolution float from the TinyMT internal state.
 %% (Note: 0.0 &lt; result &lt; 1.0)
--spec random_tinymt_temper_float(random_tinymt_intstate32()) -> float().
+-spec tinymt_temper_float(tinymt_intstate32()) -> float().
 
-random_tinymt_temper_float(R) ->
-    (random_tinymt_temper(R) + 0.5) * (1.0 / 4294967296.0).
+tinymt_temper_float(R) ->
+    (tinymt_temper(R) + 0.5) * (1.0 / 4294967296.0).
 
--spec random_tinymt_period_certification(random_tinymt_intstate32()) ->
-        random_tinymt_intstate32().
+-spec tinymt_period_certification(tinymt_intstate32()) ->
+        tinymt_intstate32().
 
 %% Certify TinyMT internal state for proper seeding:
 %% if the lower 127bits of the seed is all zero, reinitialize.
 
-random_tinymt_period_certification(
-    #random_tinymt_intstate32{
+tinymt_period_certification(
+    #tinymt_intstate32{
         status0 = 0, status1 = 0, status2 = 0, status3 = 0,
             mat1 = M1, mat2 = M2, tmat = TM}) ->
-    #random_tinymt_intstate32{
+    #tinymt_intstate32{
         status0 = $T, status1 = $I, status2 = $N, status3 = $Y,
             mat1 = M1, mat2 = M2, tmat = TM};
-random_tinymt_period_certification(
-    #random_tinymt_intstate32{
+tinymt_period_certification(
+    #tinymt_intstate32{
         status0 = 16#80000000, status1 = 0, status2 = 0, status3 = 0,
                 mat1 = M1, mat2 = M2, tmat = TM}) ->
-    #random_tinymt_intstate32{
+    #tinymt_intstate32{
         status0 = $T, status1 = $I, status2 = $N, status3 = $Y,
             mat1 = M1, mat2 = M2, tmat = TM};
-random_tinymt_period_certification(_R) -> _R.
+tinymt_period_certification(_R) -> _R.
 
--spec random_tinymt_ini_func1(uint32()) -> uint32().
+-spec tinymt_ini_func1(uint32()) -> uint32().
 
-random_tinymt_ini_func1(X) ->
+tinymt_ini_func1(X) ->
     ((X bxor (X bsr 27)) * 1664525) band ?TINYMT32_UINT32.
 
--spec random_tinymt_ini_func2(uint32()) -> uint32().
+-spec tinymt_ini_func2(uint32()) -> uint32().
 
-random_tinymt_ini_func2(X) ->
+tinymt_ini_func2(X) ->
     ((X bxor (X bsr 27)) * 1566083941) band ?TINYMT32_UINT32.
 
--spec random_tinymt_init_rec2(integer(), integer(),
-        random_tinymt_intstate32()) -> random_tinymt_intstate32().
+-spec tinymt_init_rec2(integer(), integer(),
+        tinymt_intstate32()) -> tinymt_intstate32().
 
-random_tinymt_init_rec2(I, N, R) when I =:= N ->
+tinymt_init_rec2(I, N, R) when I =:= N ->
     R;
-random_tinymt_init_rec2(I, N, R) when I < N ->
-    R1 = random_tinymt_next_state(R),
-    random_tinymt_init_rec2(I + 1, N, R1).
+tinymt_init_rec2(I, N, R) when I < N ->
+    R1 = tinymt_next_state(R),
+    tinymt_init_rec2(I + 1, N, R1).
 
--spec random_tinymt_init_by_list32_rec1
+-spec tinymt_init_by_list32_rec1
         (integer(), integer(), [uint32()], array:array(uint32())) ->
             {integer(), array:array(uint32())}.
 
-random_tinymt_init_by_list32_rec1(0, I, _, ST) ->
+tinymt_init_by_list32_rec1(0, I, _, ST) ->
     {I, ST};
-random_tinymt_init_by_list32_rec1(K, I, [], ST) ->
-    RR = random_tinymt_ini_func1(array:get(I, ST) bxor
+tinymt_init_by_list32_rec1(K, I, [], ST) ->
+    RR = tinymt_ini_func1(array:get(I, ST) bxor
              array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
              array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
     ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
@@ -1136,9 +1083,9 @@ random_tinymt_init_by_list32_rec1(K, I, [], ST) ->
                  ST2),
     ST4 = array:set(I, RR2, ST3),
     I2 = (I + 1) rem ?TINYMT32_SIZE,
-    random_tinymt_init_by_list32_rec1(K - 1, I2, [], ST4);
-random_tinymt_init_by_list32_rec1(K, I, Key, ST) ->
-    RR = random_tinymt_ini_func1(array:get(I, ST) bxor
+    tinymt_init_by_list32_rec1(K - 1, I2, [], ST4);
+tinymt_init_by_list32_rec1(K, I, Key, ST) ->
+    RR = tinymt_ini_func1(array:get(I, ST) bxor
                   array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
                   array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
     ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
@@ -1151,15 +1098,15 @@ random_tinymt_init_by_list32_rec1(K, I, Key, ST) ->
                  ST2),
     ST4 = array:set(I, RR2, ST3),
     I2 = (I + 1) rem ?TINYMT32_SIZE,
-    random_tinymt_init_by_list32_rec1(K - 1, I2, T, ST4).
+    tinymt_init_by_list32_rec1(K - 1, I2, T, ST4).
 
--spec random_tinymt_init_by_list32_rec2
+-spec tinymt_init_by_list32_rec2
         (integer(), integer(), array:array(uint32())) -> array:array(uint32()).
 
-random_tinymt_init_by_list32_rec2(0, _, ST) ->
+tinymt_init_by_list32_rec2(0, _, ST) ->
     ST;
-random_tinymt_init_by_list32_rec2(K, I, ST) ->
-    RR = random_tinymt_ini_func2((array:get(I, ST) +
+tinymt_init_by_list32_rec2(K, I, ST) ->
+    RR = tinymt_ini_func2((array:get(I, ST) +
                   array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) +
                   array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)) band ?TINYMT32_UINT32),
     ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
@@ -1171,20 +1118,20 @@ random_tinymt_init_by_list32_rec2(K, I, ST) ->
                    ST2),
     ST4 = array:set(I, RR2, ST3),
     I2 = (I + 1) rem ?TINYMT32_SIZE,
-    random_tinymt_init_by_list32_rec2(K - 1, I2, ST4).
+    tinymt_init_by_list32_rec2(K - 1, I2, ST4).
 
 %% @doc Generate a TinyMT internal state from a list of 32-bit integers.
 
--spec random_tinymt_init_by_list32(random_tinymt_intstate32(), [uint32()]) ->
-        random_tinymt_intstate32().
+-spec tinymt_init_by_list32(tinymt_intstate32(), [uint32()]) ->
+        tinymt_intstate32().
 
-random_tinymt_init_by_list32(R, K) ->
+tinymt_init_by_list32(R, K) ->
     KL = length(K),
     ST = array:new(4),
     ST0 = array:set(0, 0, ST),
-    ST1 = array:set(1, R#random_tinymt_intstate32.mat1, ST0),
-    ST2 = array:set(2, R#random_tinymt_intstate32.mat2, ST1),
-    ST3 = array:set(3, R#random_tinymt_intstate32.tmat, ST2),
+    ST1 = array:set(1, R#tinymt_intstate32.mat1, ST0),
+    ST2 = array:set(2, R#tinymt_intstate32.mat2, ST1),
+    ST3 = array:set(3, R#tinymt_intstate32.tmat, ST2),
     C =
         if
             KL + 1 > ?TINYMT32_MIN_LOOP ->
@@ -1192,7 +1139,7 @@ random_tinymt_init_by_list32(R, K) ->
             true ->
                 ?TINYMT32_MIN_LOOP
         end,
-    RR1 = random_tinymt_ini_func1(array:get(0, ST3) bxor
+    RR1 = tinymt_ini_func1(array:get(0, ST3) bxor
                   array:get(?TINYMT32_MID rem ?TINYMT32_SIZE, ST3) bxor
                   array:get((?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST3)),
     ST4 = array:set(?TINYMT32_MID rem ?TINYMT32_SIZE,
@@ -1204,60 +1151,48 @@ random_tinymt_init_by_list32(R, K) ->
                     ST4),
     ST6 = array:set(0, RR2, ST5),
     C1 = C - 1,
-    {I1, ST7} = random_tinymt_init_by_list32_rec1(C1, 1, K, ST6),
-    ST8 = random_tinymt_init_by_list32_rec2(?TINYMT32_SIZE, I1, ST7),
+    {I1, ST7} = tinymt_init_by_list32_rec1(C1, 1, K, ST6),
+    ST8 = tinymt_init_by_list32_rec2(?TINYMT32_SIZE, I1, ST7),
     [V0, V1, V2, V3] = array:to_list(ST8),
-    R1 = random_tinymt_period_certification(
-        R#random_tinymt_intstate32{status0 = V0, status1 = V1,
+    R1 = tinymt_period_certification(
+        R#tinymt_intstate32{status0 = V0, status1 = V1,
                        status2 = V2, status3 = V3}),
-    random_tinymt_init_rec2(0, ?TINYMT32_PRE_LOOP, R1).
+    tinymt_init_rec2(0, ?TINYMT32_PRE_LOOP, R1).
 
 %%-----------------------------------------------------------------------
-
-%% compatible funtions to the random module in stdlib
-
--spec random_tinymt
-        (seed0) -> random_tinymt_intstate32();
-        ({seed, A1, A2, A3})-> random_tinymt_intstate32() when
-            A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-            State0 :: random_tinymt_intstate32(), State1 :: random_tinymt_intstate32();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-            N :: pos_integer(),
-            State0 :: random_tinymt_intstate32(), State1 :: random_tinymt_intstate32().
 
 %% seed0: initial PRNG seed
 %% Set the default seed value to TinyMT state in the process directory
 %% (Compatible with random:seed0/0).
 
-random_tinymt(seed0) ->
-    #random_tinymt_intstate32{status0 = 297425621, status1 = 2108342699,
+tinymt_seed0() ->
+    #tinymt_intstate32{status0 = 297425621, status1 = 2108342699,
           status2 = 4290625991, status3 = 2232209075,
-          mat1 = 2406486510, mat2 = 4235788063, tmat = 932445695};
+          mat1 = 2406486510, mat2 = 4235788063, tmat = 932445695}.
 
 %% Set the seed value to TinyMT state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% (Compatible with random:seed/3).
 
-random_tinymt({seed, A1, A2, A3}) ->
-    random_tinymt_init_by_list32(
-        random_tinymt(seed0),
-                [A1 band ?TINYMT32_UINT32,
-                 A2 band ?TINYMT32_UINT32,
-                 A3 band ?TINYMT32_UINT32]);
+tinymt_seed({A1, A2, A3}) ->
+    tinymt_init_by_list32(
+      tinymt_seed0(),
+      [A1 band ?TINYMT32_UINT32,
+       A2 band ?TINYMT32_UINT32,
+       A3 band ?TINYMT32_UINT32]).
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
 %% (Compatible with random:uniform_s/1)
 
-random_tinymt({uniform_s, R0}) ->
-    R1 = random_tinymt_next_state(R0),
-    {random_tinymt_temper_float(R1), R1};
+tinymt_uniform(R0) ->
+    R1 = tinymt_next_state(R0),
+    {tinymt_temper_float(R1), R1}.
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 %% (Note: 1 =&gt; result &lt;= MAX (given positive integer))
 
-random_tinymt({uniform_s, Max, R}) when is_integer(Max), Max >= 1 ->
-    R1 = random_tinymt_next_state(R),
-    {(random_tinymt_temper(R1) rem Max) + 1, R1}.
+tinymt_uniform(Max, R) ->
+    R1 = tinymt_next_state(R),
+    {(tinymt_temper(R1) rem Max) + 1, R1}.
 
