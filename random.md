@@ -5,12 +5,15 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 ## Data Types
 
 ```erlang
+% Definition of algorithm handler
+-record(alg, {seed0, seed, uniform, uniform_n}).
+
 % This depends on the algorithm handler module
--type random_alg_state() :: any().
-% This is the function of the algorithm handler module
--type random_alg_handler() :: fun().
+-type alg_state() :: any().
+% This is the record of functions in the algorithm handler module
+-type alg_handler() :: #alg{}.
 % Internal state
--type random_state() :: {random_alg_handler(), random_alg_state()}.
+-type state() :: {alg_handler(), alg_state()}.
 ```    
 
 ## Available alrogithm handler function in this module
@@ -37,29 +40,60 @@ See `random.erl`.
 ## API required for the algorithm handler functions
 
 ```erlang
--spec random_handler
-        (seed0) -> random_handler_state();
-        ({seed, A1, A2, A3})-> random_handler_state() when
-                A1 :: integer(), A2 :: integer(), A3 :: integer();
-        ({uniform_s, State0}) -> {float(), State1} when
-                State0 :: random_handler_state(),
-                State1 :: random_handler_state();
-        ({uniform_s, N, State0}) -> {integer(), State1} when
-                N:: pos_integer(),
-                State0 :: random_handler_state(),
-                State1 :: random_handler_state().
+mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
+    #alg{seed0=fun as183_seed0/0, seed=fun as183_seed/1,
+     uniform=fun as183_uniform/1, uniform_n=fun as183_uniform/2};
+
+-define(PRIME1, 30269).
+-define(PRIME2, 30307).
+-define(PRIME3, 30323).
+
+%%-----------------------------------------------------------------------
+%% The type of the state
+
+%-type ran() :: {integer(), integer(), integer()}.
+
+%%-----------------------------------------------------------------------
 
 %% seed0: initial PRNG seed
 
+as183_seed0() ->
+    {3172, 9814, 20125}.
+
 %% seed: seeding with three Integers
 
+as183_seed({A1, A2, A3}) ->
+    {(abs(A1) rem (?PRIME1-1)) + 1,   % Avoid seed numbers that are
+     (abs(A2) rem (?PRIME2-1)) + 1,   % even divisors of the
+     (abs(A3) rem (?PRIME3-1)) + 1}.  % corresponding primes.
+
 %% {uniform_s, State} -> {F, NewState}:
-%% Returns a random float X where 0.0 < X < 1.0, and new state.
+%%  Returns a random float between 0 and 1, and new state.
+
+as183_uniform({A1, A2, A3}) ->
+    B1 = (A1*171) rem ?PRIME1,
+    B2 = (A2*172) rem ?PRIME2,
+    B3 = (A3*170) rem ?PRIME3,
+    R = B1/?PRIME1 + B2/?PRIME2 + B3/?PRIME3,
+    {R - trunc(R), {B1,B2,B3}}.
 
 %% {uniform_s, N, State} -> {I, NewState}
-%% Given an integer N >= 1,
-%% returns a random integer X where 1 =< X =< N, and new state.
+%%  Given an integer N >= 1, returns a random integer between 1 and N.
 
+as183_uniform(N, State0) ->
+    {F, State1} = as183_uniform(State0),
+    {trunc(F * N) + 1, State1}.
 ```
+
+## Acknowledgments
+
+Thanks to Dan Gudmundsson @dgud for the algorithm handler proposals and implementations.
+
+How the algorithm handler changes:
+
+* in emprng: module
+* first in random: one-for-all function
+* @dgud's first implementation: case statement
+* @dgud's second implementation: record of functions (current)
 
 [More to come]
