@@ -33,8 +33,9 @@
 
 ## Acknowledgments
 
-Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers,
-and the code review and the comments.
+Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers to
+the OTP random module, the code review, various ideas, implementations, pieces
+of code for `random.erl`, and the comments.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
 allowing redistribution of sfmt-erlang and tinymt-erlang under
