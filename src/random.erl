@@ -48,6 +48,9 @@
 %% Internal state
 -type state() :: {alg_handler(), alg_state()}.
 
+%% export the alg_handler() type
+-export_type([alg_handler/0]).
+
 %% =====================================================================
 %% Wrapper functions for the algorithm handlers
 %% =====================================================================
