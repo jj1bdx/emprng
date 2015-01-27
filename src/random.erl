@@ -35,7 +35,8 @@
 -define(DEFAULT_ALG_HANDLER, as183).
 -define(SEED_DICT, random_seed).
 
--record(alg, {seed0, seed, uniform, uniform_n}).
+-record(alg, {seed0 :: fun(), seed :: fun(),
+                uniform :: fun(), uniform_n :: fun()}).
 
 %% =====================================================================
 %% Types
@@ -134,10 +135,10 @@ seed(A1, A2, A3) ->
 seed(Alg0, AS0) when is_atom(Alg0) ->
     Alg = #alg{seed=Seed} = mk_alg(Alg0),
     AS = Seed(AS0),
-    seed_put({Alg, AS}),
+    _ = seed_put({Alg, AS}),
     {Alg, AS};
 seed(Alg, AS) when is_record(Alg, alg) ->
-    seed_put({Alg, AS}),
+    _ = seed_put({Alg, AS}),
     {Alg, AS}.
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
@@ -153,7 +154,7 @@ seed(Alg, AS) when is_record(Alg, alg) ->
 
 uniform() ->
     {X, Seed} = uniform_s(seed()),
-    seed_put(Seed),
+    _ = seed_put(Seed),
     X.
 
 %% uniform/1: given an integer N >= 1,
@@ -164,7 +165,7 @@ uniform() ->
 
 uniform(N) ->
     {X, Seed} = uniform_s(N, seed()),
-    seed_put(Seed),
+    _ = seed_put(Seed),
     X.
 
 %% uniform_s/1: given a state, uniform_s/1
