@@ -914,19 +914,19 @@ sfmt_uniform(N, RS) ->
 -type tinymt_intstate32() ::
         #tinymt_intstate32{}.
 
--define(TINYMT32_SH0, 1).
--define(TINYMT32_SH1, 10).
--define(TINYMT32_SH8, 8).
--define(TINYMT32_MASK, 16#7fffffff).
--define(TINYMT32_UINT32, 16#ffffffff).
+-define(TINYMT_SH0, 1).
+-define(TINYMT_SH1, 10).
+-define(TINYMT_SH8, 8).
+-define(TINYMT_MASK, 16#7fffffff).
+-define(TINYMT_UINT32, 16#ffffffff).
 
 -define(TWOPOW32, 16#100000000).
 
--define(TINYMT32_MIN_LOOP, 8).
--define(TINYMT32_PRE_LOOP, 8).
--define(TINYMT32_LAG, 1).
--define(TINYMT32_MID, 1).
--define(TINYMT32_SIZE, 4).
+-define(TINYMT_MIN_LOOP, 8).
+-define(TINYMT_PRE_LOOP, 8).
+-define(TINYMT_LAG, 1).
+-define(TINYMT_MID, 1).
+-define(TINYMT_SIZE, 4).
 
 %% Advance TinyMT state for one step.
 %% Note: running temper function is required
@@ -940,13 +940,13 @@ tinymt_next_state(R) ->
     X0 = R#tinymt_intstate32.status0
          bxor R#tinymt_intstate32.status1
          bxor R#tinymt_intstate32.status2,
-    X1 = (X0 bxor (X0 bsl ?TINYMT32_SH0)) band ?TINYMT32_UINT32,
-    Y1 = Y0 bxor (Y0 bsr ?TINYMT32_SH0) bxor X1,
+    X1 = (X0 bxor (X0 bsl ?TINYMT_SH0)) band ?TINYMT_UINT32,
+    Y1 = Y0 bxor (Y0 bsr ?TINYMT_SH0) bxor X1,
     S0 = R#tinymt_intstate32.status1,
     S10 = R#tinymt_intstate32.status2,
-    S20 = (X1 bxor (Y1 bsl ?TINYMT32_SH1)) band ?TINYMT32_UINT32,
+    S20 = (X1 bxor (Y1 bsl ?TINYMT_SH1)) band ?TINYMT_UINT32,
     S3 = Y1,
-    Y1M = (-(Y1 band 1)) band ?TINYMT32_UINT32,
+    Y1M = (-(Y1 band 1)) band ?TINYMT_UINT32,
     S1 = S10 bxor (R#tinymt_intstate32.mat1 band Y1M),
     S2 = S20 bxor (R#tinymt_intstate32.mat2 band Y1M),
     R#tinymt_intstate32{
@@ -959,10 +959,10 @@ tinymt_next_state(R) ->
 tinymt_temper(R) ->
     T0 = R#tinymt_intstate32.status3,
     T1 = (R#tinymt_intstate32.status0 +
-         (R#tinymt_intstate32.status2 bsr ?TINYMT32_SH8))
-          band ?TINYMT32_UINT32,
+         (R#tinymt_intstate32.status2 bsr ?TINYMT_SH8))
+          band ?TINYMT_UINT32,
     T2 = T0 bxor T1,
-    T1M = (-(T1 band 1)) band ?TINYMT32_UINT32,
+    T1M = (-(T1 band 1)) band ?TINYMT_UINT32,
     T2 bxor (R#tinymt_intstate32.tmat band T1M).
 
 %% Generate 32bit-resolution float from the TinyMT internal state.
@@ -997,12 +997,12 @@ tinymt_period_certification(_R) -> _R.
 -spec tinymt_ini_func1(uint32()) -> uint32().
 
 tinymt_ini_func1(X) ->
-    ((X bxor (X bsr 27)) * 1664525) band ?TINYMT32_UINT32.
+    ((X bxor (X bsr 27)) * 1664525) band ?TINYMT_UINT32.
 
 -spec tinymt_ini_func2(uint32()) -> uint32().
 
 tinymt_ini_func2(X) ->
-    ((X bxor (X bsr 27)) * 1566083941) band ?TINYMT32_UINT32.
+    ((X bxor (X bsr 27)) * 1566083941) band ?TINYMT_UINT32.
 
 -spec tinymt_init_rec2(integer(), integer(),
         tinymt_intstate32()) -> tinymt_intstate32().
@@ -1021,32 +1021,32 @@ tinymt_init_by_list32_rec1(0, I, _, ST) ->
     {I, ST};
 tinymt_init_by_list32_rec1(K, I, [], ST) ->
     RR = tinymt_ini_func1(array:get(I, ST) bxor
-             array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
-             array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
-    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
-              (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) + RR)
-               band ?TINYMT32_UINT32, ST),
-    RR2 = (RR + I) band ?TINYMT32_UINT32,
-    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
-                 (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) + RR2) band ?TINYMT32_UINT32,
+             array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) bxor
+             array:get((I + ?TINYMT_SIZE - 1) rem ?TINYMT_SIZE, ST)),
+    ST2 = array:set((I + ?TINYMT_MID) rem ?TINYMT_SIZE,
+              (array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) + RR)
+               band ?TINYMT_UINT32, ST),
+    RR2 = (RR + I) band ?TINYMT_UINT32,
+    ST3 = array:set((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE,
+                 (array:get((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE, ST2) + RR2) band ?TINYMT_UINT32,
                  ST2),
     ST4 = array:set(I, RR2, ST3),
-    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    I2 = (I + 1) rem ?TINYMT_SIZE,
     tinymt_init_by_list32_rec1(K - 1, I2, [], ST4);
 tinymt_init_by_list32_rec1(K, I, Key, ST) ->
     RR = tinymt_ini_func1(array:get(I, ST) bxor
-                  array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor
-                  array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)),
-    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
-                   (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) + RR) band ?TINYMT32_UINT32,
+                  array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) bxor
+                  array:get((I + ?TINYMT_SIZE - 1) rem ?TINYMT_SIZE, ST)),
+    ST2 = array:set((I + ?TINYMT_MID) rem ?TINYMT_SIZE,
+                   (array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) + RR) band ?TINYMT_UINT32,
                     ST),
     [H|T] = Key,
-    RR2 = (RR + H + I) band ?TINYMT32_UINT32,
-    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
-                 (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) + RR2) band ?TINYMT32_UINT32,
+    RR2 = (RR + H + I) band ?TINYMT_UINT32,
+    ST3 = array:set((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE,
+                 (array:get((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE, ST2) + RR2) band ?TINYMT_UINT32,
                  ST2),
     ST4 = array:set(I, RR2, ST3),
-    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    I2 = (I + 1) rem ?TINYMT_SIZE,
     tinymt_init_by_list32_rec1(K - 1, I2, T, ST4).
 
 -spec tinymt_init_by_list32_rec2
@@ -1056,17 +1056,17 @@ tinymt_init_by_list32_rec2(0, _, ST) ->
     ST;
 tinymt_init_by_list32_rec2(K, I, ST) ->
     RR = tinymt_ini_func2((array:get(I, ST) +
-                  array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) +
-                  array:get((I + ?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST)) band ?TINYMT32_UINT32),
-    ST2 = array:set((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE,
-                   (array:get((I + ?TINYMT32_MID) rem ?TINYMT32_SIZE, ST) bxor RR),
+                  array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) +
+                  array:get((I + ?TINYMT_SIZE - 1) rem ?TINYMT_SIZE, ST)) band ?TINYMT_UINT32),
+    ST2 = array:set((I + ?TINYMT_MID) rem ?TINYMT_SIZE,
+                   (array:get((I + ?TINYMT_MID) rem ?TINYMT_SIZE, ST) bxor RR),
                    ST),
-    RR2 = (RR - I) band ?TINYMT32_UINT32,
-    ST3 = array:set((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
-                   (array:get((I + ?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST2) bxor RR2),
+    RR2 = (RR - I) band ?TINYMT_UINT32,
+    ST3 = array:set((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE,
+                   (array:get((I + ?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE, ST2) bxor RR2),
                    ST2),
     ST4 = array:set(I, RR2, ST3),
-    I2 = (I + 1) rem ?TINYMT32_SIZE,
+    I2 = (I + 1) rem ?TINYMT_SIZE,
     tinymt_init_by_list32_rec2(K - 1, I2, ST4).
 
 %% @doc Generate a TinyMT internal state from a list of 32-bit integers.
@@ -1083,30 +1083,30 @@ tinymt_init_by_list32(R, K) ->
     ST3 = array:set(3, R#tinymt_intstate32.tmat, ST2),
     C =
         if
-            KL + 1 > ?TINYMT32_MIN_LOOP ->
+            KL + 1 > ?TINYMT_MIN_LOOP ->
                 KL + 1;
             true ->
-                ?TINYMT32_MIN_LOOP
+                ?TINYMT_MIN_LOOP
         end,
     RR1 = tinymt_ini_func1(array:get(0, ST3) bxor
-                  array:get(?TINYMT32_MID rem ?TINYMT32_SIZE, ST3) bxor
-                  array:get((?TINYMT32_SIZE - 1) rem ?TINYMT32_SIZE, ST3)),
-    ST4 = array:set(?TINYMT32_MID rem ?TINYMT32_SIZE,
-            (array:get(?TINYMT32_MID rem ?TINYMT32_SIZE, ST3) + RR1) band ?TINYMT32_UINT32,
+                  array:get(?TINYMT_MID rem ?TINYMT_SIZE, ST3) bxor
+                  array:get((?TINYMT_SIZE - 1) rem ?TINYMT_SIZE, ST3)),
+    ST4 = array:set(?TINYMT_MID rem ?TINYMT_SIZE,
+            (array:get(?TINYMT_MID rem ?TINYMT_SIZE, ST3) + RR1) band ?TINYMT_UINT32,
                     ST3),
-    RR2 = (RR1 + KL) band ?TINYMT32_UINT32,
-    ST5 = array:set((?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE,
-                   (array:get((?TINYMT32_MID + ?TINYMT32_LAG) rem ?TINYMT32_SIZE, ST4) + RR2) band ?TINYMT32_UINT32,
+    RR2 = (RR1 + KL) band ?TINYMT_UINT32,
+    ST5 = array:set((?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE,
+                   (array:get((?TINYMT_MID + ?TINYMT_LAG) rem ?TINYMT_SIZE, ST4) + RR2) band ?TINYMT_UINT32,
                     ST4),
     ST6 = array:set(0, RR2, ST5),
     C1 = C - 1,
     {I1, ST7} = tinymt_init_by_list32_rec1(C1, 1, K, ST6),
-    ST8 = tinymt_init_by_list32_rec2(?TINYMT32_SIZE, I1, ST7),
+    ST8 = tinymt_init_by_list32_rec2(?TINYMT_SIZE, I1, ST7),
     [V0, V1, V2, V3] = array:to_list(ST8),
     R1 = tinymt_period_certification(
         R#tinymt_intstate32{status0 = V0, status1 = V1,
                        status2 = V2, status3 = V3}),
-    tinymt_init_rec2(0, ?TINYMT32_PRE_LOOP, R1).
+    tinymt_init_rec2(0, ?TINYMT_PRE_LOOP, R1).
 
 %%-----------------------------------------------------------------------
 
@@ -1124,9 +1124,9 @@ tinymt_seed0() ->
 tinymt_seed({A1, A2, A3}) ->
     tinymt_init_by_list32(
       tinymt_seed0(),
-      [A1 band ?TINYMT32_UINT32,
-       A2 band ?TINYMT32_UINT32,
-       A3 band ?TINYMT32_UINT32]).
+      [A1 band ?TINYMT_UINT32,
+       A2 band ?TINYMT_UINT32,
+       A3 band ?TINYMT_UINT32]).
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
