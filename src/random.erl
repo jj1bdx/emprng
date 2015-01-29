@@ -530,61 +530,27 @@ exs1024_uniform(Max, R) ->
 %% =====================================================================
 
 %% SFMT period parameters
-%% details on SFMT-1.3.3 source code
-%%
-%% Mersenne Exponent. The period of the sequence
-%%  is a multiple of 2^MEXP-1.
--define(MEXP, 19937).
-%% SFMT generator has an internal state array of 128-bit integers,
-%% and N is its size.
-%% -define(N, ((?MEXP div 128) + 1)).
--define(N, 156).
-%% N32 is the size of internal state array when regarded as an array
-%% of 32-bit integers.
-%% -define(N32, (?N * 4)).
--define(N32, 624).
-%% for init_by_list32/1:
-%% LAG =
-%% 	if
-%% 	    ?N32 >= 623 ->
-%% 		11;
-%% 	    ?N32 >= 68 ->
-%% 		7;
-%% 	    ?N32 >= 39 ->
-%% 		5;
-%% 	    ?N32 ->
-%% 		3
-%% 	end,
-%% MID = (?N32 - LAG) div 2
--define(LAG, 11).
--define(MID, 306).
-%% the pick up position of the array.
--define(POS1, 122).
-%% the parameter of shift left as four 32-bit registers.
--define(SL1, 18).
-%% the parameter of shift left as one 128-bit register.
-%% The 128-bit integer is shifted by (SL2 * 8) bits.
--define(SL2, 1).
-%% the parameter of shift right as four 32-bit registers.
--define(SR1, 11).
-%% the parameter of shift right as one 128-bit register.
-%% The 128-bit integer is shifted by (SL2 * 8) bits.
--define(SR2, 1).
-%% A bitmask, used in the recursion.  These parameters are introduced
-%% to break symmetry of SIMD.
--define(MSK1, 16#dfffffef).
--define(MSK2, 16#ddfecb7f).
--define(MSK3, 16#bffaffff).
--define(MSK4, 16#bffffff6).
-%% These definitions are part of a 128-bit period certification vector.
--define(PARITY1, 16#00000001).
--define(PARITY2, 16#00000000).
--define(PARITY3, 16#00000000).
--define(PARITY4, 16#13c9e684).
+-define(SFMT_MEXP, 19937).
+-define(SFMT_N, 156).
+-define(SFMT_N32, 624).
+-define(SFMT_LAG, 11).
+-define(SFMT_MID, 306).
+-define(SFMT_POS1, 122).
+-define(SFMT_SL1, 18).
+-define(SFMT_SL2, 1).
+-define(SFMT_SR1, 11).
+-define(SFMT_SR2, 1).
+-define(SFMT_MSK1, 16#dfffffef).
+-define(SFMT_MSK2, 16#ddfecb7f).
+-define(SFMT_MSK3, 16#bffaffff).
+-define(SFMT_MSK4, 16#bffffff6).
+-define(SFMT_PARITY1, 16#00000001).
+-define(SFMT_PARITY2, 16#00000000).
+-define(SFMT_PARITY3, 16#00000000).
+-define(SFMT_PARITY4, 16#13c9e684).
 %% identification string for the algorithm
--define(IDSTR, "SFMT-19937:122-18-1-11-1:dfffffef-ddfecb7f-bffaffff-bffffff6").
+-define(SFMT_IDSTR, "SFMT-19937:122-18-1-11-1:dfffffef-ddfecb7f-bffaffff-bffffff6").
 
-%% SFMT calculation masks
 -define(BITMASK32, 16#ffffffff).
 -define(BITMASK64, 16#ffffffffffffffff).
 
@@ -596,18 +562,6 @@ exs1024_uniform(Max, R) ->
 %% type sfmt_intstate().
 %% N-element list of 128-bit unsigned integers,
 %% represented as a four-element list of 32-bit integers.
-%% The number of N is 156.
-%% Each 128-bit number is represented in little endian,
-%% e.g., a 128-bit X = [X0, X1, X2, X3],
-%% where represented in programming language C:
-%% ```
-%% /* begin */
-%% union X {
-%% 	uint32_t u[4];
-%% };
-%% /* end */
-%% '''
-%% And the 128-bit list is a flat concatenation of 128-bit number lists,
 
 -type sfmt_intstate() :: [integer()].
 
@@ -656,17 +610,17 @@ sfmt_do_recursion(A, B, C, D) ->
     [B0, B1, B2, B3] = B,
     % [C0, C1, C2, C3] = C,
     [D0, D1, D2, D3] = D,
-    [X0, X1, X2, X3] = sfmt_lshift128(A, ?SL2),
-    [Y0, Y1, Y2, Y3] = sfmt_rshift128(C, ?SR2),
+    [X0, X1, X2, X3] = sfmt_lshift128(A, ?SFMT_SL2),
+    [Y0, Y1, Y2, Y3] = sfmt_rshift128(C, ?SFMT_SR2),
     [
-     A0 bxor X0 bxor ((B0 bsr ?SR1) band ?MSK1) bxor Y0
-        bxor ((D0 bsl ?SL1) band ?BITMASK32),
-     A1 bxor X1 bxor ((B1 bsr ?SR1) band ?MSK2) bxor Y1
-        bxor ((D1 bsl ?SL1) band ?BITMASK32),
-     A2 bxor X2 bxor ((B2 bsr ?SR1) band ?MSK3) bxor Y2
-        bxor ((D2 bsl ?SL1) band ?BITMASK32),
-     A3 bxor X3 bxor ((B3 bsr ?SR1) band ?MSK4) bxor Y3
-        bxor ((D3 bsl ?SL1) band ?BITMASK32)
+     A0 bxor X0 bxor ((B0 bsr ?SFMT_SR1) band ?SFMT_MSK1) bxor Y0
+        bxor ((D0 bsl ?SFMT_SL1) band ?BITMASK32),
+     A1 bxor X1 bxor ((B1 bsr ?SFMT_SR1) band ?SFMT_MSK2) bxor Y1
+        bxor ((D1 bsl ?SFMT_SL1) band ?BITMASK32),
+     A2 bxor X2 bxor ((B2 bsr ?SFMT_SR1) band ?SFMT_MSK3) bxor Y2
+        bxor ((D2 bsl ?SFMT_SL1) band ?BITMASK32),
+     A3 bxor X3 bxor ((B3 bsr ?SFMT_SR1) band ?SFMT_MSK4) bxor Y3
+        bxor ((D3 bsl ?SFMT_SL1) band ?BITMASK32)
      ].
 
 -spec sfmt_gen_rand_recursion(non_neg_integer(),
@@ -711,8 +665,8 @@ sfmt_gen_rand_recursion(K, Acc, Int,
 
 sfmt_gen_rand_all(Int) ->
     [T3, T2, T1, T0, S3, S2, S1, S0 | _] = lists:reverse(Int),
-    sfmt_gen_rand_recursion(?N32, [], Int, [],
-		       lists:nthtail(?POS1 * 4, Int), [],
+    sfmt_gen_rand_recursion(?SFMT_N32, [], Int, [],
+		       lists:nthtail(?SFMT_POS1 * 4, Int), [],
 		       [S0, S1, S2, S3], [T0, T1, T2, T3]).
 
 sfmt_period_modification_rec1(Parity, I) ->
@@ -733,10 +687,10 @@ sfmt_period_modification_rec1(X, Parity, I) ->
 
 sfmt_period_modification(Int) ->
     [I0, I1, I2, I3 | IR ] = Int,
-    {NI0, F0} = sfmt_period_modification_rec1(?PARITY1, I0),
-    {NI1, F1} = sfmt_period_modification_rec1(?PARITY2, I1),
-    {NI2, F2} = sfmt_period_modification_rec1(?PARITY3, I2),
-    {NI3, F3} = sfmt_period_modification_rec1(?PARITY4, I3),
+    {NI0, F0} = sfmt_period_modification_rec1(?SFMT_PARITY1, I0),
+    {NI1, F1} = sfmt_period_modification_rec1(?SFMT_PARITY2, I1),
+    {NI2, F2} = sfmt_period_modification_rec1(?SFMT_PARITY3, I2),
+    {NI3, F3} = sfmt_period_modification_rec1(?SFMT_PARITY4, I3),
     % F[0-3] are true or false
     if
 	F0 ->
@@ -753,10 +707,10 @@ sfmt_period_modification(Int) ->
 
 sfmt_period_certification(Int) ->
     [I0, I1, I2, I3 | _ ] = Int,
-    In0 = (I0 band ?PARITY1) bxor
-	(I1 band ?PARITY2) bxor
-	(I2 band ?PARITY3) bxor	
-	(I3 band ?PARITY4),
+    In0 = (I0 band ?SFMT_PARITY1) bxor
+	(I1 band ?SFMT_PARITY2) bxor
+	(I2 band ?SFMT_PARITY3) bxor	
+	(I3 band ?SFMT_PARITY4),
     In1 = In0 bxor (In0 bsr 16),
     In2 = In1 bxor (In1 bsr 8),
     In3 = In2 bxor (In2 bsr 4),
@@ -776,7 +730,7 @@ sfmt_func1(X) ->
 sfmt_func2(X) ->
     ((X bxor (X bsr 27)) * 1566083941) band ?BITMASK32.
 
-sfmt_init_gen_rand_rec1(?N32, Acc) ->
+sfmt_init_gen_rand_rec1(?SFMT_N32, Acc) ->
     lists:reverse(Acc);
 sfmt_init_gen_rand_rec1(I, Acc) ->
     [H | _] = Acc,
@@ -797,49 +751,49 @@ sfmt_init_by_list32_rec1(0, I, _, A) ->
     {I, A};
 sfmt_init_by_list32_rec1(K, I, [], A) ->
     R = sfmt_func1(array:get(I, A) bxor
-		  array:get((I + ?MID) rem ?N32, A) bxor
-		  array:get((I + ?N32 - 1) rem ?N32, A)),
-    A2 = array:set((I + ?MID) rem ?N32,
-		   (array:get((I + ?MID) rem ?N32, A) + R) band ?BITMASK32,
+		  array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) bxor
+		  array:get((I + ?SFMT_N32 - 1) rem ?SFMT_N32, A)),
+    A2 = array:set((I + ?SFMT_MID) rem ?SFMT_N32,
+		   (array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) + R) band ?BITMASK32,
 		   A),
     R2 = (R + I) band ?BITMASK32,
-    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
-		 (array:get((I + ?MID + ?LAG) rem ?N32, A2) + R2) band ?BITMASK32,
+    A3 = array:set((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32,
+		 (array:get((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32, A2) + R2) band ?BITMASK32,
 		 A2),
     A4 = array:set(I, R2, A3),
-    I2 = (I + 1) rem ?N32,
+    I2 = (I + 1) rem ?SFMT_N32,
     sfmt_init_by_list32_rec1(K - 1, I2, [], A4);
 sfmt_init_by_list32_rec1(K, I, Key, A) ->
     R = sfmt_func1(array:get(I, A) bxor
-		  array:get((I + ?MID) rem ?N32, A) bxor
-		  array:get((I + ?N32 - 1) rem ?N32, A)),
-    A2 = array:set((I + ?MID) rem ?N32,
-		   (array:get((I + ?MID) rem ?N32, A) + R) band ?BITMASK32,
+		  array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) bxor
+		  array:get((I + ?SFMT_N32 - 1) rem ?SFMT_N32, A)),
+    A2 = array:set((I + ?SFMT_MID) rem ?SFMT_N32,
+		   (array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) + R) band ?BITMASK32,
 		   A),
     [H|T] = Key,
     R2 = (R + H + I) band ?BITMASK32,
-    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
-		   (array:get((I + ?MID + ?LAG) rem ?N32, A2) + R2) band ?BITMASK32,
+    A3 = array:set((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32,
+		   (array:get((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32, A2) + R2) band ?BITMASK32,
 		   A2),
     A4 = array:set(I, R2, A3),
-    I2 = (I + 1) rem ?N32,
+    I2 = (I + 1) rem ?SFMT_N32,
     sfmt_init_by_list32_rec1(K - 1, I2, T, A4).
 
 sfmt_init_by_list32_rec2(0, _, A) ->
     A;
 sfmt_init_by_list32_rec2(K, I, A) ->
     R = sfmt_func2((array:get(I, A) +
-		  array:get((I + ?MID) rem ?N32, A) +
-		  array:get((I + ?N32 - 1) rem ?N32, A)) band ?BITMASK32),
-    A2 = array:set((I + ?MID) rem ?N32,
-		   (array:get((I + ?MID) rem ?N32, A) bxor R),
+		  array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) +
+		  array:get((I + ?SFMT_N32 - 1) rem ?SFMT_N32, A)) band ?BITMASK32),
+    A2 = array:set((I + ?SFMT_MID) rem ?SFMT_N32,
+		   (array:get((I + ?SFMT_MID) rem ?SFMT_N32, A) bxor R),
 		   A),
     R2 = (R - I) band ?BITMASK32,
-    A3 = array:set((I + ?MID + ?LAG) rem ?N32,
-		   (array:get((I + ?MID + ?LAG) rem ?N32, A2) bxor R2),
+    A3 = array:set((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32,
+		   (array:get((I + ?SFMT_MID + ?SFMT_LAG) rem ?SFMT_N32, A2) bxor R2),
 		   A2),
     A4 = array:set(I, R2, A3),
-    I2 = (I + 1) rem ?N32,
+    I2 = (I + 1) rem ?SFMT_N32,
     sfmt_init_by_list32_rec2(K - 1, I2, A4).
 
 %% generates an internal state from a list of 32-bit integers
@@ -850,24 +804,24 @@ sfmt_init_by_list32_rec2(K, I, A) ->
 sfmt_init_by_list32(Key) ->
     Keylength = length(Key),
 
-    A = array:new(?N32, {default, 16#8b8b8b8b}),
+    A = array:new(?SFMT_N32, {default, 16#8b8b8b8b}),
 
     Count =
 	if
-	    Keylength + 1 > ?N32 ->
+	    Keylength + 1 > ?SFMT_N32 ->
 		Keylength + 1;
 	    true ->
-		?N32
+		?SFMT_N32
 	end,
     R = sfmt_func1(array:get(0, A) bxor
-		  array:get(?MID, A) bxor
-		  array:get(?N32 - 1, A)),
-    A2 = array:set(?MID,
-		   (array:get(?MID, A) + R) band ?BITMASK32,
+		  array:get(?SFMT_MID, A) bxor
+		  array:get(?SFMT_N32 - 1, A)),
+    A2 = array:set(?SFMT_MID,
+		   (array:get(?SFMT_MID, A) + R) band ?BITMASK32,
 		   A),
     R2 = (R + Keylength) band ?BITMASK32,
-    A3 = array:set(?MID + ?LAG,
-		   (array:get(?MID + ?LAG, A2) + R2) band ?BITMASK32,
+    A3 = array:set(?SFMT_MID + ?SFMT_LAG,
+		   (array:get(?SFMT_MID + ?SFMT_LAG, A2) + R2) band ?BITMASK32,
 		   A2),
     A4 = array:set(0, R2, A3),
 
@@ -875,7 +829,7 @@ sfmt_init_by_list32(Key) ->
     {I1, A5} = sfmt_init_by_list32_rec1(Count1, 1, Key, A4),
 
     sfmt_period_certification(
-      array:to_list(sfmt_init_by_list32_rec2(?N32, I1, A5))).
+      array:to_list(sfmt_init_by_list32_rec2(?SFMT_N32, I1, A5))).
 
 %% Note: ran_sfmt() -> {[integer()], sfmt_intstate()}
 
@@ -885,7 +839,7 @@ sfmt_init_by_list32(Key) ->
         (sfmt_intstate()) -> {integer(), ran_sfmt()};
         (ran_sfmt()) -> {integer(), ran_sfmt()}.
 
-sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?N32 ->
+sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?SFMT_N32 ->
     % when sfmt_intstate() is directly passed
     % note: given sfmt_intstate() is
     %       re-initialized by gen_rand_all/1
