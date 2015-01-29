@@ -58,11 +58,9 @@
 
 %%% Note: if a process calls uniform/0 or uniform/1 without setting a seed first,
 %%%       seed/0 is called automatically.
-%%% (compatible with the random module)
 
 %% seed0/0: returns the default state, including the state values
 %% and the algorithm handler.
-%% (compatible with the random module)
 
 -spec seed0() -> state().
 
@@ -89,7 +87,6 @@ seed_put(Seed) ->
 
 %% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 %% in the process dictionary, and returns the old state.
-%% (compatible with the random module)
 
 -spec seed() -> undefined | state().
 
@@ -103,7 +100,7 @@ seed() ->
 %% seed/1:
 %% seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3), and
 %% Seed({Alg, AS}) is equivalent to seed(Alg, AS).
-%% (the 3-element tuple argument is compatible with the random module,
+%% (the 3-element tuple argument is backward-compatible,
 %% and the 2-element tuple argument is a new function.)
 
 -spec seed({Alg :: alg_handler(), AS :: alg_state()} |
@@ -117,7 +114,6 @@ seed({Alg, AS}) ->
 
 %% seed/3: seeds RNG with integer values in the process dictionary,
 %% and returns the old state.
-%% (compatible with the random module)
 
 -spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
       undefined | state().
@@ -143,12 +139,9 @@ seed(Alg, AS) when is_record(Alg, alg) ->
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
 %%% uniformly distributed random numbers.
-%%% (They are expected to be semantically compatible with OTP random module,
-%%%  i.e., the uniformity and return value ranges will not change.)
 
 %% uniform/0: returns a random float X where 0.0 < X < 1.0,
 %% updating the state in the process dictionary.
-%% (See OTP random module.)
 
 -spec uniform() -> float().
 
@@ -171,7 +164,6 @@ uniform(N) ->
 %% uniform_s/1: given a state, uniform_s/1
 %% returns a random float X where 0.0 < X < 1.0,
 %% and a new state.
-%% (See OTP random module.)
 
 -spec uniform_s(state()) -> {float(), NewS :: state()}.
 
@@ -317,7 +309,6 @@ exs64_seed({A1, A2, A3}) ->
 %% Generate float from
 %% given xorshift64star internal state.
 %% (Note: 0.0 &lt; result &lt; 1.0)
-%% (Compatible with random:uniform_s/1)
 
 exs64_uniform(R0) ->
     {V, R1} = exs64_next(R0),
@@ -468,7 +459,7 @@ exs1024_gen1024(N, R, L) ->
 
 %% seed0: initial PRNG seed
 %% Set the default seed value to xorshift1024star state
-%% in the process directory (Compatible with random:seed0/0).
+%% in the process directory.
 
 exs1024_seed0() ->
     {
@@ -1121,7 +1112,6 @@ tinymt_init_by_list32(R, K) ->
 
 %% seed0: initial PRNG seed
 %% Set the default seed value to TinyMT state in the process directory
-%% (Compatible with random:seed0/0).
 
 tinymt_seed0() ->
     #tinymt_intstate32{status0 = 297425621, status1 = 2108342699,
@@ -1130,7 +1120,6 @@ tinymt_seed0() ->
 
 %% Set the seed value to TinyMT state in the process directory
 %% with the given three unsigned 32-bit integer arguments
-%% (Compatible with random:seed/3).
 
 tinymt_seed({A1, A2, A3}) ->
     tinymt_init_by_list32(
@@ -1141,7 +1130,6 @@ tinymt_seed({A1, A2, A3}) ->
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
-%% (Compatible with random:uniform_s/1)
 
 tinymt_uniform(R0) ->
     R1 = tinymt_next_state(R0),
