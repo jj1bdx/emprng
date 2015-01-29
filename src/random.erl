@@ -87,6 +87,14 @@ seed0(Alg0) ->
 seed_put(Seed) ->
     put(?SEED_DICT, Seed).
 
+
+seed_get() ->
+    case get(?SEED_DICT) of
+        undefined -> seed0();
+        Old -> Old  % no type checking here
+    end.
+
+
 %% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 %% in the process dictionary, and returns the old state.
 %% (compatible with the random module)
@@ -153,7 +161,7 @@ seed(Alg, AS) when is_record(Alg, alg) ->
 -spec uniform() -> float().
 
 uniform() ->
-    {X, Seed} = uniform_s(seed()),
+    {X, Seed} = uniform_s(seed_get()),
     _ = seed_put(Seed),
     X.
 
@@ -164,7 +172,7 @@ uniform() ->
 -spec uniform(N :: pos_integer()) -> pos_integer().
 
 uniform(N) ->
-    {X, Seed} = uniform_s(N, seed()),
+    {X, Seed} = uniform_s(N, seed_get()),
     _ = seed_put(Seed),
     X.
 
