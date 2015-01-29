@@ -288,14 +288,11 @@ exs64_next(R) ->
 
 %%-----------------------------------------------------------------------
 
-%% seed0: initial PRNG seed
-%% set the default seed value to xorshift64star state
-%% in the process directory.
+%% algorithm handler functions
 
 exs64_seed0() -> 1234567890123456789.
 
-%% seed: seeding with three Integers
-%% set the seed value to xorshift64star state in the process directory
+%% Set the seed value to xorshift64star state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here: three 32-bit primes
 
@@ -305,18 +302,13 @@ exs64_seed({A1, A2, A3}) ->
     {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
     ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
 
-%% {uniform_s, State} -> {F, NewState}:
-%% Generate float from
-%% given xorshift64star internal state.
-%% (Note: 0.0 &lt; result &lt; 1.0)
+%% Generate float from given xorshift64star internal state.
 
 exs64_uniform(R0) ->
     {V, R1} = exs64_next(R0),
     {V / 18446744073709551616.0, R1}.
 
-%% {uniform_s, N, State} -> {I, NewState}:
 %% Generate integer from given xorshift64star internal state.
-%% (Note: 0 =&lt; result &lt; MAX (given positive integer))
 
 exs64_uniform(Max, R) ->
     {V, R1} = exs64_next(R),
@@ -353,17 +345,14 @@ exsplus_next(R) ->
 
 %%-----------------------------------------------------------------------
 
-%% seed0: initial PRNG seed
-%% Set the default seed value to xorshift128plus state
-%% in the process directory
+%% algorithm handler functions
 
 exsplus_seed0() ->
     #exsplus_state{s0 = 1234567890123456789, s1 = 9876543210987654321}.
 
-%% seed: seeding with three Integers
 %% Set the seed value to xorshift128plus state in the process directory
 %% with the given three unsigned 32-bit integer arguments
-%% Multiplicands here: three 32-bit primes
+%% Multiplicands here are three 32-bit primes
 
 exsplus_seed({A1, A2, A3}) ->
     {_, R1} = exsplus_next(
@@ -376,18 +365,13 @@ exsplus_seed({A1, A2, A3}) ->
                    s1 = R1#exsplus_state.s1}),
     R2.
 
-%% {uniform_s, State} -> {F, NewState}:
-%% Generate float from
-%% given xorshift128plus internal state.
-%% (Note: 0.0 =&lt; result &lt; 1.0)
+%% Generate float from given xorshift128plus internal state.
 
 exsplus_uniform(R0) ->
     {I, R1} = exsplus_next(R0),
     {I / 18446744073709551616.0, R1}.
 
-%% {uniform_s, N, State} -> {I, NewState}:
 %% Generate integer from given xorshift128plus internal state.
-%% (Note: 0 =&lt; result &lt; MAX (given positive integer))
 
 exsplus_uniform(Max, R) ->
     {V, R1} = exsplus_next(R),
@@ -455,11 +439,9 @@ exs1024_gen1024(N, R, L) ->
 
 %%-----------------------------------------------------------------------
 
--define(UINT21MASK, 16#1fffff).
+%% algorithm handler functions
 
-%% seed0: initial PRNG seed
-%% Set the default seed value to xorshift1024star state
-%% in the process directory.
+-define(UINT21MASK, 16#1fffff).
 
 exs1024_seed0() ->
     {
@@ -482,10 +464,9 @@ exs1024_seed0() ->
       16#f0123456789abcde
      ], []}.
 
-%% seed: seeding with three Integers
 %% Set the seed value to xorshift1024star state in the process directory
 %% with the given three unsigned 21-bit integer arguments
-%% Multiplicands here: three 21-bit primes.
+%% Multiplicands here are three 21-bit primes.
 %% TODO: this seeding has a room to improve.
 
 exs1024_seed({A1, A2, A3}) ->
@@ -495,18 +476,13 @@ exs1024_seed({A1, A2, A3}) ->
     {exs1024_gen1024(
             (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
 
-%% {uniform_s, State} -> {F, NewState}:
-%% Generate float from
-%% given xorshift1024star internal state.
-%% (Note: 0.0 =&lt; result &lt; 1.0)
+%% Generate float from given xorshift1024star internal state.
 
 exs1024_uniform(R0) ->
     {V, R1} = exs1024_next(R0),
     {V / 18446744073709551616.0, R1}.
 
-%% {uniform_s, N, State} -> {I, NewState}:
-%% @doc Generate integer from given xorshift1024star internal state.
-%% (Note: 0 =&lt; result &lt; MAX (given positive integer))
+%% Generate integer from given xorshift1024star internal state.
 
 exs1024_uniform(Max, R) ->
     {V, R1} = exs1024_next(R),
@@ -848,16 +824,15 @@ sfmt_gen_rand32({R, I}) ->
 
 %%-----------------------------------------------------------------------
 
-%% seed0: initial PRNG seed
-%% Returns the default internal state
+%% algorithm handler functions
 
 sfmt_seed0() ->
     I = sfmt_init_gen_rand(1234),
     % this operation is sfmt_intstate() type dependent
     {I, I}.
 
-%% seed: seeding with three Integers
-%% Puts the seed computed from the given integer list by init_by_list32/1
+%% Puts the seed computed from the given 32-bit integer list
+%% by init_by_list32/1
 %% and puts the internal state into the process dictionary
 %% and initializes the random number list with the internal state
 %% and returns the old internal state (internal use only)
@@ -870,25 +845,20 @@ sfmt_seed({A1, A2, A3}) ->
     % this operation is sfmt_intstate() type dependent
     {I, I}.
 
-%% With a given state,
-%% Returns a uniformly-distributed float random number X
-%% where `(X > 0.0)' and `(X < 1.0)'
-%% and a new state
+%% Generate 32bit-resolution float from the given SFMT internal state.
 
 sfmt_uniform(RS) ->
     {X, NRS} = sfmt_gen_rand32(RS),
     {(X + 0.5) * (1.0/4294967296.0), NRS}.
 
-%% Returns a uniformly-distributed integer random number X
-%% where (X >= 1) and (X =< N)
-%% and a new state
+%% Generate 32bit-resolution integer from the given SFMT internal state.
 
 sfmt_uniform(N, RS) ->
     {X, NRS} = sfmt_gen_rand32(RS),
     {trunc(X * (1.0/4294967296.0) * N) + 1, NRS}.
 
 %% =====================================================================
-%% Tiny Mersennt Twister (TinyMT) PRNG
+%% Tiny Mersenne Twister (TinyMT) PRNG
 %% Algorithm by Mutsuo Saito and Makoto Matsumoto
 %% Reference URL:
 %% http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/TINYMT/index.html
@@ -1110,8 +1080,7 @@ tinymt_init_by_list32(R, K) ->
 
 %%-----------------------------------------------------------------------
 
-%% seed0: initial PRNG seed
-%% Set the default seed value to TinyMT state in the process directory
+%% algorithm handler functions
 
 tinymt_seed0() ->
     #tinymt_intstate32{status0 = 297425621, status1 = 2108342699,
@@ -1129,14 +1098,12 @@ tinymt_seed({A1, A2, A3}) ->
        A3 band ?TINYMT_UINT32]).
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
-%% (Note: 0.0 =&lt; result &lt; 1.0)
 
 tinymt_uniform(R0) ->
     R1 = tinymt_next_state(R0),
     {tinymt_temper_float(R1), R1}.
 
-%% Generate 32bit-resolution float from the given TinyMT internal state.
-%% (Note: 1 =&gt; result &lt;= MAX (given positive integer))
+%% Generate 32bit-resolution integer from the given TinyMT internal state.
 
 tinymt_uniform(Max, R) ->
     R1 = tinymt_next_state(R),
