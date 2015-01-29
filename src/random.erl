@@ -32,15 +32,20 @@
 -export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
+-export([get_algorithm/0, get_algorithm/1]).
+
 -define(DEFAULT_ALG_HANDLER, as183).
 -define(SEED_DICT, random_seed).
 
--record(alg, {seed0 :: fun(), seed :: fun(),
-                uniform :: fun(), uniform_n :: fun()}).
+-record(alg, {type=?DEFAULT_ALG_HANDLER :: alg(),
+	      seed0 :: fun(), seed :: fun(),
+	      uniform :: fun(), uniform_n :: fun()}).
 
 %% =====================================================================
 %% Types
 %% =====================================================================
+
+-opaque(state). %% Implementation state
 
 %% This depends on the algorithm handler function
 -type alg_state() :: any().
@@ -49,20 +54,33 @@
 %% Internal state
 -type state() :: {alg_handler(), alg_state()}.
 
+-type alg() :: as183 | exs64 | exsplus | exs1024 | sfmt | tinymt.
+
 %% export the alg_handler() type
--export_type([alg_handler/0]).
+-export_type([alg/0]).
 
 %% =====================================================================
-%% Wrapper functions for the algorithm handlers
+%% API
 %% =====================================================================
+
+%% Return used algorithm
+-spec get_algorithm() -> undefined | alg().
+
+get_algorithm() ->
+    case seed_get() of
+	{#alg{type=Alg}, _} -> Alg;
+	_ -> undefined
+    end.
+
+-spec get_algorithm(state()) -> alg().
+
+get_algorithm({#alg{type=Alg}, _}) -> Alg.
 
 %%% Note: if a process calls uniform/0 or uniform/1 without setting a seed first,
 %%%       seed/0 is called automatically.
-%%% (compatible with the random module)
 
 %% seed0/0: returns the default state, including the state values
 %% and the algorithm handler.
-%% (compatible with the random module)
 
 -spec seed0() -> state().
 
@@ -72,32 +90,15 @@ seed0() ->
 %% seed0/1: returns the default state
 %% for the given algorithm handler name in atom.
 %% usage example: seed0(exs64)
-%% (new function)
 
--spec seed0(atom()) -> state().
+-spec seed0(alg()) -> state().
 
 seed0(Alg0) ->
     Alg = #alg{seed0=Seed0} = mk_alg(Alg0),
     {Alg, Seed0()}.
 
-%% seed_put/1: internal function to put seed into the process dictionary.
-
--spec seed_put(state()) -> undefined | state().
-
-seed_put(Seed) ->
-    put(?SEED_DICT, Seed).
-
-
-seed_get() ->
-    case get(?SEED_DICT) of
-        undefined -> seed0();
-        Old -> Old  % no type checking here
-    end.
-
-
 %% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 %% in the process dictionary, and returns the old state.
-%% (compatible with the random module)
 
 -spec seed() -> undefined | state().
 
@@ -109,43 +110,37 @@ seed() ->
     end.
 
 %% seed/1:
-%% seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3), and
-%% Seed({Alg, AS}) is equivalent to seed(Alg, AS).
-%% (the 3-element tuple argument is compatible with the random module,
-%% and the 2-element tuple argument is a new function.)
+%% seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3).
 
--spec seed({Alg :: alg_handler(), AS :: alg_state()} |
-           {A1 :: integer(), A2 :: integer(), A3 :: integer()}) ->
-      undefined | state().
+-spec seed({A1, A2, A3}) -> 'undefined' | state() when
+      A1 :: integer(),
+      A2 :: integer(),
+      A3 :: integer().
 
 seed({A1, A2, A3}) ->
-    seed(A1, A2, A3);
-seed({Alg, AS}) ->
-    seed(Alg, AS).
+    seed(A1, A2, A3).
 
 %% seed/3: seeds RNG with integer values in the process dictionary,
 %% and returns the old state.
-%% (compatible with the random module)
-
 -spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
       undefined | state().
 
 seed(A1, A2, A3) ->
-    seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}).
+    Old = seed_get(),
+    _ = seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}),
+    Old.
 
-%% seed/2: seeds RNG with the algorithm handler and given values
-%% in the process dictionary, and returns the old state.
-%% Note: the type of the values depends on the algorithm handler.
-%% (new function)
+%% seed/2: seeds RNG with the algorithm and given values or previous state
+%% and returns the NEW state.
 
--spec seed(Alg :: atom() | alg_handler(), AS :: alg_state()) -> state().
+-spec seed(Alg :: alg(),
+	   state() | {integer(), integer(), integer()}) ->
+		  state().
 
-seed(Alg0, AS0) when is_atom(Alg0) ->
-    Alg = #alg{seed=Seed} = mk_alg(Alg0),
+seed(Alg0, S0 = {_, _, _}) ->
+    seed(Alg0, {mk_alg(Alg0), S0});
+seed(Alg0, {Alg=#alg{type=Alg0, seed=Seed}, AS0}) ->
     AS = Seed(AS0),
-    _ = seed_put({Alg, AS}),
-    {Alg, AS};
-seed(Alg, AS) when is_record(Alg, alg) ->
     _ = seed_put({Alg, AS}),
     {Alg, AS}.
 
@@ -194,30 +189,43 @@ uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
 -spec uniform_s(N :: pos_integer(), state()) ->
       {pos_integer(), NewS :: state()}.
 
-uniform_s(N, {Alg = #alg{uniform_n=Uniform}, AS0}) 
+uniform_s(N, {Alg = #alg{uniform_n=Uniform}, AS0})
   when is_integer(N), N >= 1 ->
     {X, AS} = Uniform(N, AS0),
     {X, {Alg, AS}}.
 
+%% =====================================================================
+%% Internal functions
+
+-spec seed_put(state()) -> undefined | state().
+
+seed_put(Seed) ->
+    put(?SEED_DICT, Seed).
+
+seed_get() ->
+    case get(?SEED_DICT) of
+        undefined -> seed0();
+        Old -> Old  % no type checking here
+    end.
 
 %% Setup alg record
 mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
-    #alg{seed0=fun as183_seed0/0, seed=fun as183_seed/1, 
+    #alg{type=as183, seed0=fun as183_seed0/0, seed=fun as183_seed/1,
 	 uniform=fun as183_uniform/1, uniform_n=fun as183_uniform/2};
-mk_alg(exs64) -> 
-    #alg{seed0=fun exs64_seed0/0, seed=fun exs64_seed/1, 
+mk_alg(exs64) ->
+    #alg{type=exs64, seed0=fun exs64_seed0/0, seed=fun exs64_seed/1,
 	 uniform=fun exs64_uniform/1, uniform_n=fun exs64_uniform/2};
-mk_alg(exsplus) -> 
-    #alg{seed0=fun exsplus_seed0/0, seed=fun exsplus_seed/1, 
+mk_alg(exsplus) ->
+    #alg{type=exsplus, seed0=fun exsplus_seed0/0, seed=fun exsplus_seed/1,
 	 uniform=fun exsplus_uniform/1, uniform_n=fun exsplus_uniform/2};
-mk_alg(exs1024) -> 
-    #alg{seed0=fun exs1024_seed0/0, seed=fun exs1024_seed/1, 
+mk_alg(exs1024) ->
+    #alg{type=exs1024, seed0=fun exs1024_seed0/0, seed=fun exs1024_seed/1,
 	 uniform=fun exs1024_uniform/1, uniform_n=fun exs1024_uniform/2};
-mk_alg(sfmt) -> 
-    #alg{seed0=fun sfmt_seed0/0, seed=fun sfmt_seed/1, 
+mk_alg(sfmt) ->
+    #alg{type=sfmt, seed0=fun sfmt_seed0/0, seed=fun sfmt_seed/1,
 	 uniform=fun sfmt_uniform/1, uniform_n=fun sfmt_uniform/2};
-mk_alg(tinymt) -> 
-    #alg{seed0=fun tinymt_seed0/0, seed=fun tinymt_seed/1, 
+mk_alg(tinymt) ->
+    #alg{type=tinymt, seed0=fun tinymt_seed0/0, seed=fun tinymt_seed/1,
 	 uniform=fun tinymt_uniform/1, uniform_n=fun tinymt_uniform/2}.
 
 
@@ -319,7 +327,10 @@ exs64_seed({A1, A2, A3}) ->
     {V1, _} = exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
     {V2, _} = exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
     {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
-    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
+    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1;
+exs64_seed(R0) ->
+    {_V, R} = exs64_next(R0),
+    R.
 
 %% {uniform_s, State} -> {F, NewState}:
 %% Generate float from
@@ -381,7 +392,9 @@ exsplus_seed0() ->
 %% Set the seed value to xorshift128plus state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here: three 32-bit primes
-
+exsplus_seed(S0=#exsplus_state{}) ->
+    {_, R} = exsplus_next(S0),
+    R;
 exsplus_seed({A1, A2, A3}) ->
     {_, R1} = exsplus_next(
                #exsplus_state{
@@ -510,7 +523,10 @@ exs1024_seed({A1, A2, A3}) ->
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
     B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
     {exs1024_gen1024(
-            (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
+		(B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []};
+exs1024_seed(S0) ->
+    {_, R} = exs1024_next(S0),
+    R.
 
 %% {uniform_s, State} -> {F, NewState}:
 %% Generate float from
@@ -931,7 +947,10 @@ sfmt_seed({A1, A2, A3}) ->
             (A2 + 1) rem 4294967295,
             (A3 + 1) rem 4294967295]),
     % this operation is sfmt_intstate() type dependent
-    {I, I}.
+    {I, I};
+sfmt_seed(S0) ->
+    {_, R} = sfmt_gen_rand32(S0),
+    R.
 
 %% With a given state,
 %% Returns a uniformly-distributed float random number X
@@ -1191,7 +1210,9 @@ tinymt_seed({A1, A2, A3}) ->
       tinymt_seed0(),
       [A1 band ?TINYMT32_UINT32,
        A2 band ?TINYMT32_UINT32,
-       A3 band ?TINYMT32_UINT32]).
+       A3 band ?TINYMT32_UINT32]);
+tinymt_seed(R0) ->
+    tinymt_next_state(R0).
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 %% (Note: 0.0 =&lt; result &lt; 1.0)
