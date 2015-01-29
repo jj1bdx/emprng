@@ -815,7 +815,6 @@ sfmt_gen_rand32(L) when is_list(L), length(L) =:= ?SFMT_N32 ->
     {H, {T, L2}};
 sfmt_gen_rand32({[], I}) ->
     I2 = sfmt_gen_rand_all(I),
-    % this operation is sfmt_intstate() type dependent
     [H|T] = I2,
     {H, {T, I2}};
 sfmt_gen_rand32({R, I}) ->
@@ -828,7 +827,6 @@ sfmt_gen_rand32({R, I}) ->
 
 sfmt_seed0() ->
     I = sfmt_init_gen_rand(1234),
-    % this operation is sfmt_intstate() type dependent
     {I, I}.
 
 %% Puts the seed computed from the given 32-bit integer list
@@ -842,7 +840,6 @@ sfmt_seed({A1, A2, A3}) ->
             (A1 + 1) rem 4294967295,
             (A2 + 1) rem 4294967295,
             (A3 + 1) rem 4294967295]),
-    % this operation is sfmt_intstate() type dependent
     {I, I}.
 
 %% Generate 32bit-resolution float from the given SFMT internal state.
