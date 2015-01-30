@@ -566,14 +566,13 @@ exs1024_uniform(Max, R) ->
 
 -type ran_sfmt() :: {[integer()], sfmt_intstate()}.
 
-
 %% SIMD 128-bit right shift simulation for little endian SIMD
 %% of Shift*8 bits.
 
 -spec sfmt_rshift128(w128(), integer()) -> w128().
 
-sfmt_rshift128(In, Shift) ->
-    [I0, I1, I2, I3] = In,
+sfmt_rshift128([I0, I1, I2, I3], Shift) ->
+    % [I0, I1, I2, I3] = In,
     TH = (I3 bsl 32) bor (I2),
     TL = (I1 bsl 32) bor (I0),
     OH = (TH bsr (Shift * 8)) band ?BITMASK64,
@@ -587,8 +586,8 @@ sfmt_rshift128(In, Shift) ->
 
 -spec sfmt_lshift128(w128(), integer()) -> w128().
 
-sfmt_lshift128(In, Shift) ->
-    [I0, I1, I2, I3] = In,
+sfmt_lshift128([I0, I1, I2, I3], Shift) ->
+    % [I0, I1, I2, I3] = In,
     TH = (I3 bsl 32) bor (I2),
     TL = (I1 bsl 32) bor (I0),
     OL = (TL bsl (Shift * 8)) band ?BITMASK64,
@@ -601,12 +600,16 @@ sfmt_lshift128(In, Shift) ->
 
 -spec sfmt_do_recursion(w128(), w128(), w128(), w128()) -> w128().
 
-sfmt_do_recursion(A, B, C, D) ->
-    [A0, A1, A2, A3] = A,
-    [B0, B1, B2, B3] = B,
+sfmt_do_recursion(
+    [A0, A1, A2, A3],
+    [B0, B1, B2, B3],
+    C,
+    [D0, D1, D2, D3]) ->
+    % [A0, A1, A2, A3] = A,
+    % [B0, B1, B2, B3] = B,
     % [C0, C1, C2, C3] = C,
-    [D0, D1, D2, D3] = D,
-    [X0, X1, X2, X3] = sfmt_lshift128(A, ?SFMT_SL2),
+    % [D0, D1, D2, D3] = D,
+    [X0, X1, X2, X3] = sfmt_lshift128([A0, A1, A2, A3], ?SFMT_SL2),
     [Y0, Y1, Y2, Y3] = sfmt_rshift128(C, ?SFMT_SR2),
     [
      A0 bxor X0 bxor ((B0 bsr ?SFMT_SR1) band ?SFMT_MSK1) bxor Y0
