@@ -359,7 +359,7 @@ exs64_uniform(Max, R) ->
 -spec exsplus_next(exsplus_state()) ->
     {uint64(), exsplus_state()}.
 
-
+%% Note: members s0 and s1 are swapped here
 exsplus_next(#exsplus_state{s0 = S1, s1 = S0}) ->
     S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
     S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
