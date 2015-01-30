@@ -935,35 +935,38 @@ sfmt_uniform(N, RS) ->
 -spec tinymt_next_state(tinymt_intstate32()) ->
         tinymt_intstate32().
 
-tinymt_next_state(R) ->
-    Y0 = R#tinymt_intstate32.status3,
-    X0 = R#tinymt_intstate32.status0
-         bxor R#tinymt_intstate32.status1
-         bxor R#tinymt_intstate32.status2,
+tinymt_next_state(#tinymt_intstate32{
+        status0 = R0, status1 = R1,
+        status2 = R2, status3 = R3,
+        mat1 = M1, mat2 = M2, tmat = TM}) ->
+    Y0 = R3,
+    X0 = R0 bxor R1 bxor R2,
     X1 = (X0 bxor (X0 bsl ?TINYMT_SH0)) band ?TINYMT_UINT32,
     Y1 = Y0 bxor (Y0 bsr ?TINYMT_SH0) bxor X1,
-    S0 = R#tinymt_intstate32.status1,
-    S10 = R#tinymt_intstate32.status2,
+    S0 = R1,
+    S10 = R2,
     S20 = (X1 bxor (Y1 bsl ?TINYMT_SH1)) band ?TINYMT_UINT32,
     S3 = Y1,
     Y1M = (-(Y1 band 1)) band ?TINYMT_UINT32,
-    S1 = S10 bxor (R#tinymt_intstate32.mat1 band Y1M),
-    S2 = S20 bxor (R#tinymt_intstate32.mat2 band Y1M),
-    R#tinymt_intstate32{
-        status0 = S0, status1 = S1, status2 = S2, status3 = S3}.
+    S1 = S10 bxor (M1 band Y1M),
+    S2 = S20 bxor (M2 band Y1M),
+    #tinymt_intstate32{
+        status0 = S0, status1 = S1, status2 = S2, status3 = S3,
+        mat1 = M1, mat2 = M2, tmat = TM}.
 
 %% Generate 32bit unsigned integer from the TinyMT internal state.
 
 -spec tinymt_temper(tinymt_intstate32()) -> uint32().
 
-tinymt_temper(R) ->
-    T0 = R#tinymt_intstate32.status3,
-    T1 = (R#tinymt_intstate32.status0 +
-         (R#tinymt_intstate32.status2 bsr ?TINYMT_SH8))
-          band ?TINYMT_UINT32,
+tinymt_temper(#tinymt_intstate32{
+        status0 = R0, status1 = _R1,
+        status2 = R2, status3 = R3,
+        mat1 = _M1, mat2 = _M2, tmat = TM}) ->
+    T0 = R3,
+    T1 = (R0 + (R2 bsr ?TINYMT_SH8)) band ?TINYMT_UINT32,
     T2 = T0 bxor T1,
     T1M = (-(T1 band 1)) band ?TINYMT_UINT32,
-    T2 bxor (R#tinymt_intstate32.tmat band T1M).
+    T2 bxor (TM band T1M).
 
 %% Generate 32bit-resolution float from the TinyMT internal state.
 %% (Note: 0.0 &lt; result &lt; 1.0)
