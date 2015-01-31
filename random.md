@@ -16,14 +16,14 @@ Random number generator (RNG), which accepts multiple algorithm handlers.
 -type state() :: {alg_handler(), alg_state()}.
 ```    
 
-## Available alrogithm handler function in this module
+## Available algorithm handler functions and code base in this module
 
-* `random_as183`: AS183 (compatible with the old OTP `random` module)
-* `random_exs64`: [exs64](https://github.com/jj1bdx/exs64/)
-* `random_exsplus`: [exsplus](https://github.com/jj1bdx/exsplus/)
-* `random_exs1024`: [exs1024](https://github.com/jj1bdx/exs1024/)
-* `random_sfmt`: [sfmt-erlang](https://github.com/jj1bdx/sfmt-erlang/)
-* `random_tinymt`: [tinymt-erlang](https://github.com/jj1bdx/tinymt-erlang/)
+* `as183`: AS183 (compatible with the old OTP `random` module)
+* `exs64`: [exs64](https://github.com/jj1bdx/exs64/)
+* `exsplus`: [exsplus](https://github.com/jj1bdx/exsplus/)
+* `exs1024`: [exs1024](https://github.com/jj1bdx/exs1024/)
+* `sfmt`: [sfmt-erlang](https://github.com/jj1bdx/sfmt-erlang/)
+* `tinymt`: [tinymt-erlang](https://github.com/jj1bdx/tinymt-erlang/)
 
 ## Default algorithm handler function
 
@@ -36,6 +36,23 @@ The default algorithm handler function is `random:random_as183/1`.
 ## Exports
 
 See `random.erl`.
+
+## Notable new functions
+
+```erlang
+%% Return used algorithm
+-spec get_algorithm() -> undefined | alg().
+
+get_algorithm() ->
+    case seed_get() of
+        {#alg{type=Alg}, _} -> Alg;
+        _ -> undefined
+    end.
+
+-spec get_algorithm(state()) -> alg().
+
+get_algorithm({#alg{type=Alg}, _}) -> Alg.
+```
 
 ## API required for the algorithm handler functions
 
