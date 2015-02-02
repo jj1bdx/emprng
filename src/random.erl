@@ -38,7 +38,7 @@
 -define(SEED_DICT, random_seed).
 
 -record(alg, {type=?DEFAULT_ALG_HANDLER :: alg(),
-	      seed0 :: fun(), seed :: fun(),
+	      seed :: fun(),
 	      uniform :: fun(), uniform_n :: fun()}).
 
 %% =====================================================================
@@ -93,9 +93,8 @@ seed0() ->
 
 -spec seed0(alg()) -> state().
 
-seed0(Alg0) ->
-    Alg = #alg{seed0=Seed0} = mk_alg(Alg0),
-    {Alg, Seed0()}.
+seed0(Alg) ->
+    seed(Alg, {3172, 9814, 20125}).
 
 %% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 %% in the process dictionary, and returns the old state.
@@ -207,22 +206,22 @@ seed_get() ->
 
 %% Setup alg record
 mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
-    #alg{type=as183, seed0=fun as183_seed0/0, seed=fun as183_seed/1,
+    #alg{type=as183, seed=fun as183_seed/1,
 	 uniform=fun as183_uniform/1, uniform_n=fun as183_uniform/2};
 mk_alg(exs64) ->
-    #alg{type=exs64, seed0=fun exs64_seed0/0, seed=fun exs64_seed/1,
+    #alg{type=exs64, seed=fun exs64_seed/1,
 	 uniform=fun exs64_uniform/1, uniform_n=fun exs64_uniform/2};
 mk_alg(exsplus) ->
-    #alg{type=exsplus, seed0=fun exsplus_seed0/0, seed=fun exsplus_seed/1,
+    #alg{type=exsplus, seed=fun exsplus_seed/1,
 	 uniform=fun exsplus_uniform/1, uniform_n=fun exsplus_uniform/2};
 mk_alg(exs1024) ->
-    #alg{type=exs1024, seed0=fun exs1024_seed0/0, seed=fun exs1024_seed/1,
+    #alg{type=exs1024, seed=fun exs1024_seed/1,
 	 uniform=fun exs1024_uniform/1, uniform_n=fun exs1024_uniform/2};
 mk_alg(sfmt) ->
-    #alg{type=sfmt, seed0=fun sfmt_seed0/0, seed=fun sfmt_seed/1,
+    #alg{type=sfmt, seed=fun sfmt_seed/1,
 	 uniform=fun sfmt_uniform/1, uniform_n=fun sfmt_uniform/2};
 mk_alg(tinymt) ->
-    #alg{type=tinymt, seed0=fun tinymt_seed0/0, seed=fun tinymt_seed/1,
+    #alg{type=tinymt, seed=fun tinymt_seed/1,
 	 uniform=fun tinymt_uniform/1, uniform_n=fun tinymt_uniform/2}.
 
 
@@ -245,11 +244,6 @@ mk_alg(tinymt) ->
 %-type ran() :: {integer(), integer(), integer()}.
 
 %%-----------------------------------------------------------------------
-
-%% seed0: initial PRNG seed
-
-as183_seed0() ->
-    {3172, 9814, 20125}.
 
 %% seed: seeding with three Integers
 
@@ -311,8 +305,6 @@ exs64_next(R) ->
 
 %% algorithm handler functions
 
-exs64_seed0() -> 1234567890123456789.
-
 %% Set the seed value to xorshift64star state in the process directory
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here: three 32-bit primes
@@ -369,9 +361,6 @@ exsplus_next(#exsplus_state{s0 = S1, s1 = S0}) ->
 %%-----------------------------------------------------------------------
 
 %% algorithm handler functions
-
-exsplus_seed0() ->
-    #exsplus_state{s0 = 1234567890123456789, s1 = 9876543210987654321}.
 
 %% Set the seed value to xorshift128plus state in the process directory
 %% with the given three unsigned 32-bit integer arguments
@@ -468,27 +457,6 @@ exs1024_gen1024(N, R, L) ->
 %% algorithm handler functions
 
 -define(UINT21MASK, 16#1fffff).
-
-exs1024_seed0() ->
-    {
-     [
-      16#0123456789abcdef,
-      16#123456789abcdef0,
-      16#23456789abcdef01,
-      16#3456789abcdef012,
-      16#456789abcdef0123,
-      16#56789abcdef01234,
-      16#6789abcdef012345,
-      16#789abcdef0123456,
-      16#89abcdef01234567,
-      16#9abcdef012345678,
-      16#abcdef0123456789,
-      16#bcdef0123456789a,
-      16#cdef0123456789ab,
-      16#def0123456789abc,
-      16#ef0123456789abcd,
-      16#f0123456789abcde
-     ], []}.
 
 %% Set the seed value to xorshift1024star state in the process directory
 %% with the given three unsigned 21-bit integer arguments
@@ -729,22 +697,7 @@ sfmt_func1(X) ->
 sfmt_func2(X) ->
     ((X bxor (X bsr 27)) * 1566083941) band ?BITMASK32.
 
-sfmt_init_gen_rand_rec1(?SFMT_N32, Acc) ->
-    lists:reverse(Acc);
-sfmt_init_gen_rand_rec1(I, Acc) ->
-    [H | _] = Acc,
-    sfmt_init_gen_rand_rec1(
-      I + 1,
-      [((1812433253 * (H bxor (H bsr 30))) + I) band ?BITMASK32 | Acc]).
-
 %% @doc generates an internal state from an integer seed
-
--spec sfmt_init_gen_rand(integer()) ->
-        sfmt_intstate().
-
-sfmt_init_gen_rand(Seed) ->
-    sfmt_period_certification(
-        sfmt_init_gen_rand_rec1(1, [Seed])).
 
 sfmt_init_by_list32_rec1(0, I, _, A) ->
     {I, A};
@@ -857,9 +810,6 @@ sfmt_gen_rand32({R, I}) ->
 
 %% algorithm handler functions
 
-sfmt_seed0() ->
-    I = sfmt_init_gen_rand(1234),
-    {I, I}.
 
 %% Puts the seed computed from the given 32-bit integer list
 %% by init_by_list32/1
