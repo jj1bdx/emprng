@@ -29,10 +29,12 @@
 %% NOTE: this module will replace OTP random module
 -module(random).
 
--export([seed/0, seed/1, seed/2, seed/3, seed0/0, seed0/1,
+-export([seed0/0,
+	 %% New functions
+	 seed0/1, make_seed/1, make_seed/2, export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
--export([get_algorithm/0, get_algorithm/1]).
+-export([seed/0, seed/1, seed/3]). %% Deprecate ?
 
 -define(DEFAULT_ALG_HANDLER, as183).
 -define(SEED_DICT, random_seed).
@@ -47,12 +49,14 @@
 
 -opaque(state). %% Implementation state
 
+-opaque(alg_seed).  %% Algorithm dependent state
+
 %% This depends on the algorithm handler function
--type alg_state() :: any().
+-type alg_seed() :: any().
 %% This is the algorithm handler function within this module
 -type alg_handler() :: #alg{}.
 %% Internal state
--type state() :: {alg_handler(), alg_state()}.
+-type state() :: {alg_handler(), alg_seed()}.
 
 -type alg() :: as183 | exs64 | exsplus | exs1024 | sfmt | tinymt.
 
@@ -63,18 +67,18 @@
 %% API
 %% =====================================================================
 
-%% Return used algorithm
--spec get_algorithm() -> undefined | alg().
+%% Return algorithm and seed so that RNG state can be recreated with make_seed/1
+-spec export_seed() -> undefined | {alg(), alg_seed()}.
 
-get_algorithm() ->
+export_seed() ->
     case seed_get() of
-	{#alg{type=Alg}, _} -> Alg;
+	{#alg{type=Alg}, Seed} -> {Alg, Seed};
 	_ -> undefined
     end.
 
--spec get_algorithm(state()) -> alg().
+-spec export_seed(state()) -> {alg(), alg_seed()}.
 
-get_algorithm({#alg{type=Alg}, _}) -> Alg.
+export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
 
 %%% Note: if a process calls uniform/0 or uniform/1 without setting a seed first,
 %%%       seed/0 is called automatically.
@@ -94,7 +98,7 @@ seed0() ->
 -spec seed0(alg()) -> state().
 
 seed0(Alg) ->
-    seed(Alg, {3172, 9814, 20125}).
+    make_seed(Alg, {3172, 9814, 20125}).
 
 %% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
 %% in the process dictionary, and returns the old state.
@@ -127,19 +131,36 @@ seed({A1, A2, A3}) ->
 
 seed(A1, A2, A3) ->
     Old = seed_get(),
-    _ = seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}),
+    _ = make_seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}),
     Old.
 
-%% seed/2: seeds RNG with the algorithm and given values or previous state
+
+%% make_seed(Alg) seeds RNG with runtime dependent values
+%% and return the NEW state
+-spec make_seed(alg() | {alg(), alg_seed()}) -> state().
+
+make_seed(Alg) when is_atom(Alg) ->
+    make_seed(Alg,
+	      {erlang:phash2([{node(),self()}]),
+	       erlang:monotonic_time(),
+	       erlang:unique_integer()});
+
+%% make_seed({Alg,Seed}) setup RNG with a previously exported seed
+%% and return the NEW state
+make_seed({Alg0, Seed}) ->
+    Alg = mk_alg(Alg0),
+    _ = seed_put({Alg, Seed}),
+    {Alg, Seed}.
+
+%% make_seed/2: seeds RNG with the algorithm and given values
 %% and returns the NEW state.
 
--spec seed(Alg :: alg(),
-	   state() | {integer(), integer(), integer()}) ->
-		  state().
+-spec make_seed(Alg :: alg(), {integer(), integer(), integer()}) ->
+		       state().
 
-seed(Alg0, AS0 = {_, _, _}) ->
-    Alg = #alg{seed=Seed} = mk_alg(Alg0),
-    AS = Seed(AS0),
+make_seed(Alg0, S0 = {_, _, _}) ->
+    Alg=#alg{seed=Seed} = mk_alg(Alg0),
+    AS = Seed(S0),
     _ = seed_put({Alg, AS}),
     {Alg, AS}.
 
