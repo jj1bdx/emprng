@@ -137,9 +137,8 @@ seed(A1, A2, A3) ->
 	   state() | {integer(), integer(), integer()}) ->
 		  state().
 
-seed(Alg0, S0 = {_, _, _}) ->
-    seed(Alg0, {mk_alg(Alg0), S0});
-seed(Alg0, {Alg=#alg{type=Alg0, seed=Seed}, AS0}) ->
+seed(Alg0, AS0 = {_, _, _}) ->
+    Alg = #alg{seed=Seed} = mk_alg(Alg0),
     AS = Seed(AS0),
     _ = seed_put({Alg, AS}),
     {Alg, AS}.
@@ -313,10 +312,7 @@ exs64_seed({A1, A2, A3}) ->
     {V1, _} = exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
     {V2, _} = exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
     {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
-    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1;
-exs64_seed(R0) ->
-    {_V, R} = exs64_next(R0),
-    R.
+    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
 
 %% Generate float from given xorshift64star internal state.
 
@@ -366,9 +362,6 @@ exsplus_next(#exsplus_state{s0 = S1, s1 = S0}) ->
 %% with the given three unsigned 32-bit integer arguments
 %% Multiplicands here are three 32-bit primes
 
-exsplus_seed(S0=#exsplus_state{}) ->
-    {_, R} = exsplus_next(S0),
-    R;
 exsplus_seed({A1, A2, A3}) ->
     {_, R1} = exsplus_next(
                #exsplus_state{
@@ -468,10 +461,7 @@ exs1024_seed({A1, A2, A3}) ->
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
     B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
     {exs1024_gen1024(
-		(B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []};
-exs1024_seed(S0) ->
-    {_, R} = exs1024_next(S0),
-    R.
+		(B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
 
 %% Generate float from given xorshift1024star internal state.
 
@@ -822,10 +812,7 @@ sfmt_seed({A1, A2, A3}) ->
             (A1 + 1) rem 4294967295,
             (A2 + 1) rem 4294967295,
             (A3 + 1) rem 4294967295]),
-    {I, I};
-sfmt_seed(S0) ->
-    {_, R} = sfmt_gen_rand32(S0),
-    R.
+    {I, I}.
 
 %% Generate 32bit-resolution float from the given SFMT internal state.
 
@@ -1080,9 +1067,7 @@ tinymt_seed({A1, A2, A3}) ->
       tinymt_seed0(),
       [A1 band ?TINYMT_UINT32,
        A2 band ?TINYMT_UINT32,
-       A3 band ?TINYMT_UINT32]);
-tinymt_seed(R0) ->
-    tinymt_next_state(R0).
+       A3 band ?TINYMT_UINT32]).
 
 %% Generate 32bit-resolution float from the given TinyMT internal state.
 
