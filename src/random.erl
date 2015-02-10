@@ -29,12 +29,11 @@
 %% NOTE: this module will replace OTP random module
 -module(random).
 
--export([seed0/0,
-	 %% New functions
-	 seed0/1, make_seed/1, make_seed/2, export_seed/0, export_seed/1,
+-export([%% New functions
+	 make_seed/1, make_seed/2, export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
--export([seed/0, seed/1, seed/3]). %% Deprecate ?
+-export([seed0/0, seed/0, seed/1, seed/3]). %% Deprecate ?
 
 -define(DEFAULT_ALG_HANDLER, as183).
 -define(SEED_DICT, random_seed).
@@ -90,12 +89,6 @@ export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
 
 seed0() ->
     seed0(?DEFAULT_ALG_HANDLER).
-
-%% seed0/1: returns the default state
-%% for the given algorithm handler name in atom.
-%% usage example: seed0(exs64)
-
--spec seed0(alg()) -> state().
 
 seed0(Alg) ->
     make_seed(Alg, {3172, 9814, 20125}).
@@ -220,7 +213,7 @@ seed_put(Seed) ->
 
 seed_get() ->
     case get(?SEED_DICT) of
-        undefined -> seed0();
+        undefined -> make_seed(exs64);
         Old -> Old  % no type checking here
     end.
 
