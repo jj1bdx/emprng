@@ -39,7 +39,6 @@
 -define(SEED_DICT, random_seed).
 
 -record(alg, {type=?DEFAULT_ALG_HANDLER :: alg(),
-	      seed :: fun(),
 	      uniform :: fun(), uniform_n :: fun()}).
 
 %% =====================================================================
@@ -141,7 +140,7 @@ make_seed(Alg) when is_atom(Alg) ->
 %% make_seed({Alg,Seed}) setup RNG with a previously exported seed
 %% and return the NEW state
 make_seed({Alg0, Seed}) ->
-    Alg = mk_alg(Alg0),
+    {Alg,_SeedFun} = mk_alg(Alg0),
     _ = seed_put({Alg, Seed}),
     {Alg, Seed}.
 
@@ -152,7 +151,7 @@ make_seed({Alg0, Seed}) ->
 		       state().
 
 make_seed(Alg0, S0 = {_, _, _}) ->
-    Alg=#alg{seed=Seed} = mk_alg(Alg0),
+    {Alg, Seed} = mk_alg(Alg0),
     AS = Seed(S0),
     _ = seed_put({Alg, AS}),
     {Alg, AS}.
@@ -219,23 +218,29 @@ seed_get() ->
 
 %% Setup alg record
 mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
-    #alg{type=as183, seed=fun as183_seed/1,
-	 uniform=fun as183_uniform/1, uniform_n=fun as183_uniform/2};
+    {#alg{type=as183, uniform=fun as183_uniform/1,
+	  uniform_n=fun as183_uniform/2},
+     fun as183_seed/1};
 mk_alg(exs64) ->
-    #alg{type=exs64, seed=fun exs64_seed/1,
-	 uniform=fun exs64_uniform/1, uniform_n=fun exs64_uniform/2};
+    {#alg{type=exs64, uniform=fun exs64_uniform/1,
+	  uniform_n=fun exs64_uniform/2},
+     fun exs64_seed/1};
 mk_alg(exsplus) ->
-    #alg{type=exsplus, seed=fun exsplus_seed/1,
-	 uniform=fun exsplus_uniform/1, uniform_n=fun exsplus_uniform/2};
+    {#alg{type=exsplus, uniform=fun exsplus_uniform/1,
+	  uniform_n=fun exsplus_uniform/2},
+     fun exsplus_seed/1};
 mk_alg(exs1024) ->
-    #alg{type=exs1024, seed=fun exs1024_seed/1,
-	 uniform=fun exs1024_uniform/1, uniform_n=fun exs1024_uniform/2};
+    {#alg{type=exs1024, uniform=fun exs1024_uniform/1,
+	  uniform_n=fun exs1024_uniform/2},
+     fun exs1024_seed/1};
 mk_alg(sfmt) ->
-    #alg{type=sfmt, seed=fun sfmt_seed/1,
-	 uniform=fun sfmt_uniform/1, uniform_n=fun sfmt_uniform/2};
+    {#alg{type=sfmt, uniform=fun sfmt_uniform/1,
+	  uniform_n=fun sfmt_uniform/2},
+     fun sfmt_seed/1};
 mk_alg(tinymt) ->
-    #alg{type=tinymt, seed=fun tinymt_seed/1,
-	 uniform=fun tinymt_uniform/1, uniform_n=fun tinymt_uniform/2}.
+    {#alg{type=tinymt, uniform=fun tinymt_uniform/1,
+	  uniform_n=fun tinymt_uniform/2},
+     fun tinymt_seed/1}.
 
 
 %% =====================================================================
