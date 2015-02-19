@@ -27,16 +27,15 @@
 %% =====================================================================
 
 %% NOTE: this module will replace OTP random module
--module(random).
+-module(rand).
 
--export([%% New functions
-	 make_seed/1, make_seed/2, export_seed/0, export_seed/1,
+-export([seed0/0,
+	 seed_s/1, seed_s/2, seed/1, seed/2,
+	 export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
--export([seed0/0, seed/0, seed/1, seed/3]). %% Deprecate ?
-
 -define(DEFAULT_ALG_HANDLER, as183).
--define(SEED_DICT, random_seed).
+-define(SEED_DICT, rand_seed).
 
 -record(alg, {type=?DEFAULT_ALG_HANDLER :: alg(),
 	      uniform :: fun(), uniform_n :: fun()}).
@@ -65,9 +64,8 @@
 %% API
 %% =====================================================================
 
-%% Return algorithm and seed so that RNG state can be recreated with make_seed/1
+%% Return algorithm and seed so that RNG state can be recreated with seed/1
 -spec export_seed() -> undefined | {alg(), alg_seed()}.
-
 export_seed() ->
     case seed_get() of
 	{#alg{type=Alg}, Seed} -> {Alg, Seed};
@@ -75,85 +73,49 @@ export_seed() ->
     end.
 
 -spec export_seed(state()) -> {alg(), alg_seed()}.
-
 export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
-
-%%% Note: if a process calls uniform/0 or uniform/1 without setting a seed first,
-%%%       seed/0 is called automatically.
 
 %% seed0/0: returns the default state, including the state values
 %% and the algorithm handler.
 
 -spec seed0() -> state().
-
 seed0() ->
-    seed0(?DEFAULT_ALG_HANDLER).
+    seed(?DEFAULT_ALG_HANDLER, {3172, 9814, 20125}).
 
-seed0(Alg) ->
-    make_seed(Alg, {3172, 9814, 20125}).
-
-%% seed/0: seeds RNG with default (fixed) state values and the algorithm handler
-%% in the process dictionary, and returns the old state.
-
--spec seed() -> undefined | state().
-
-seed() ->
-    case seed_put(seed0()) of
-        undefined -> seed0();
-        % no type checking here
-        Old -> Old
-    end.
-
-%% seed/1:
-%% seed({A1, A2, A3}) is equivalent to seed(A1, A2, A3).
-
--spec seed({A1, A2, A3}) -> 'undefined' | state() when
-      A1 :: integer(),
-      A2 :: integer(),
-      A3 :: integer().
-
-seed({A1, A2, A3}) ->
-    seed(A1, A2, A3).
-
-%% seed/3: seeds RNG with integer values in the process dictionary,
-%% and returns the old state.
-
--spec seed(A1 :: integer(), A2 :: integer(), A3 :: integer()) ->
-      undefined | state().
-
-seed(A1, A2, A3) ->
-    Old = seed_get(),
-    _ = make_seed(?DEFAULT_ALG_HANDLER, {A1, A2, A3}),
-    Old.
-
-
-%% make_seed(Alg) seeds RNG with runtime dependent values
+%% seed(Alg) seeds RNG with runtime dependent values
 %% and return the NEW state
--spec make_seed(alg() | {alg(), alg_seed()}) -> state().
 
-make_seed(Alg) when is_atom(Alg) ->
-    make_seed(Alg,
-	      {erlang:phash2([{node(),self()}]),
-	       erlang:monotonic_time(),
-	       erlang:unique_integer()});
-
-%% make_seed({Alg,Seed}) setup RNG with a previously exported seed
+%% seed({Alg,Seed}) setup RNG with a previously exported seed
 %% and return the NEW state
-make_seed({Alg0, Seed}) ->
+
+-spec seed(alg() | {alg(), alg_seed()}) -> state().
+seed(Alg) when is_atom(Alg) ->
+    R = seed_s(Alg),
+    _ = seed_put(R),
+    R.
+
+-spec seed_s(alg() | {alg(), alg_seed()}) -> state().
+seed_s(Alg) when is_atom(Alg) ->
+    seed_s(Alg, {erlang:phash2([{node(),self()}]),
+		 erlang:monotonic_time(),
+		 erlang:time_offset()});
+seed_s({Alg0, Seed}) ->
     {Alg,_SeedFun} = mk_alg(Alg0),
-    _ = seed_put({Alg, Seed}),
     {Alg, Seed}.
 
-%% make_seed/2: seeds RNG with the algorithm and given values
+%% seed/2: seeds RNG with the algorithm and given values
 %% and returns the NEW state.
 
--spec make_seed(Alg :: alg(), {integer(), integer(), integer()}) ->
-		       state().
+-spec seed(Alg :: alg(), {integer(), integer(), integer()}) -> state().
+seed(Alg0, S0) ->
+    State = seed_s(Alg0, S0),
+    _ = seed_put(State),
+    State.
 
-make_seed(Alg0, S0 = {_, _, _}) ->
+-spec seed_s(Alg :: alg(), {integer(), integer(), integer()}) -> state().
+seed_s(Alg0, S0 = {_, _, _}) ->
     {Alg, Seed} = mk_alg(Alg0),
     AS = Seed(S0),
-    _ = seed_put({Alg, AS}),
     {Alg, AS}.
 
 %%% uniform/0, uniform/1, uniform_s/1, uniform_s/2 are all
@@ -174,7 +136,6 @@ uniform() ->
 %% updating the state in the process dictionary.
 
 -spec uniform(N :: pos_integer()) -> pos_integer().
-
 uniform(N) ->
     {X, Seed} = uniform_s(N, seed_get()),
     _ = seed_put(Seed),
@@ -185,7 +146,6 @@ uniform(N) ->
 %% and a new state.
 
 -spec uniform_s(state()) -> {float(), NewS :: state()}.
-
 uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
     {X, AS} = Uniform(AS0),
     {X, {Alg, AS}}.
@@ -195,8 +155,7 @@ uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
 %% and a new state.
 
 -spec uniform_s(N :: pos_integer(), state()) ->
-      {pos_integer(), NewS :: state()}.
-
+		       {pos_integer(), NewS :: state()}.
 uniform_s(N, {Alg = #alg{uniform_n=Uniform}, AS0})
   when is_integer(N), N >= 1 ->
     {X, AS} = Uniform(N, AS0),
@@ -212,7 +171,7 @@ seed_put(Seed) ->
 
 seed_get() ->
     case get(?SEED_DICT) of
-        undefined -> make_seed(exs64);
+        undefined -> seed(exs64);
         Old -> Old  % no type checking here
     end.
 
