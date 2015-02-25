@@ -34,10 +34,11 @@
 	 export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
--define(DEFAULT_ALG_HANDLER, as183).
+-define(OLD_ALG_HANDLER, as183).
+-define(DEFAULT_ALG_HANDLER, exs64).
 -define(SEED_DICT, rand_seed).
 
--record(alg, {type=?DEFAULT_ALG_HANDLER :: alg(),
+-record(alg, {type=?OLD_ALG_HANDLER :: alg(),
 	      uniform :: fun(), uniform_n :: fun()}).
 
 %% =====================================================================
@@ -80,7 +81,7 @@ export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
 
 -spec seed0() -> state().
 seed0() ->
-    seed(?DEFAULT_ALG_HANDLER, {3172, 9814, 20125}).
+    seed(?OLD_ALG_HANDLER, {3172, 9814, 20125}).
 
 %% seed(Alg) seeds RNG with runtime dependent values
 %% and return the NEW state
@@ -89,7 +90,7 @@ seed0() ->
 %% and return the NEW state
 
 -spec seed(alg() | {alg(), alg_seed()}) -> state().
-seed(Alg) when is_atom(Alg) ->
+seed(Alg) ->
     R = seed_s(Alg),
     _ = seed_put(R),
     R.
@@ -171,7 +172,7 @@ seed_put(Seed) ->
 
 seed_get() ->
     case get(?SEED_DICT) of
-        undefined -> seed(exs64);
+        undefined -> seed(?DEFAULT_ALG_HANDLER);
         Old -> Old  % no type checking here
     end.
 
