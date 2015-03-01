@@ -26,10 +26,9 @@
 %% Author contact: kenji.rikitake@acm.org
 %% =====================================================================
 
-%% NOTE: this module will replace OTP random module
 -module(rand).
 
--export([seed0/0,
+-export([seed0/0, seed0/1,
 	 seed_s/1, seed_s/2, seed/1, seed/2,
 	 export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
@@ -80,8 +79,17 @@ export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
 %% and the algorithm handler.
 
 -spec seed0() -> state().
+
 seed0() ->
-    seed(?OLD_ALG_HANDLER, {3172, 9814, 20125}).
+    seed0(?OLD_ALG_HANDLER).
+
+%% seed0/1: returns the default state for each algorithm,
+%% including the state values and the algorithm handler.
+
+-spec seed0(alg()) -> state().
+
+seed0(Alg) ->
+    seed(Alg, {3172, 9814, 20125}).
 
 %% seed(Alg) seeds RNG with runtime dependent values
 %% and return the NEW state
@@ -97,9 +105,11 @@ seed(Alg) ->
 
 -spec seed_s(alg() | {alg(), alg_seed()}) -> state().
 seed_s(Alg) when is_atom(Alg) ->
-    seed_s(Alg, {erlang:phash2([{node(),self()}]),
-		 erlang:monotonic_time(),
-		 erlang:time_offset()});
+    seed_s(Alg, erlang:now());
+    % code here will be enabled when these functions are available
+    % seed_s(Alg, {erlang:phash2([{node(),self()}]),
+    %		 erlang:monotonic_time(),
+	%   	 erlang:time_offset()});
 seed_s({Alg0, Seed}) ->
     {Alg,_SeedFun} = mk_alg(Alg0),
     {Alg, Seed}.
