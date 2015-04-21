@@ -2,13 +2,12 @@
 
 ## Modules
 
-* `emprng.erl`: wrapper functions to call the handler modules `emprng_*.erl`
-* `random.erl`: prototype OTP `random`-compatible module based on emprng modules
+* `rand.erl`: prototype OTP `random`-compatible module
 
 ## License
 
 * See individual files for the license details
-* `random.erl` is licensed under [Erlang Public License](http://www.erlang.org/EPLICENSE)
+* `rand.erl` is licensed under [Erlang Public License](http://www.erlang.org/EPLICENSE)
 
 ## Goals
 
