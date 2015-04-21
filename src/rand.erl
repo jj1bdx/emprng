@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2003-2015. All Rights Reserved.
+%% Copyright Ericsson AB 2015. All Rights Reserved.
 %%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -28,7 +28,7 @@
 
 -module(rand).
 
--export([seed0/0, seed0/1,
+-export([seed0/0,
 	 seed_s/1, seed_s/2, seed/1, seed/2,
 	 export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
@@ -79,17 +79,8 @@ export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
 %% and the algorithm handler.
 
 -spec seed0() -> state().
-
 seed0() ->
-    seed0(?OLD_ALG_HANDLER).
-
-%% seed0/1: returns the default state for each algorithm,
-%% including the state values and the algorithm handler.
-
--spec seed0(alg()) -> state().
-
-seed0(Alg) ->
-    seed(Alg, {3172, 9814, 20125}).
+    seed(?OLD_ALG_HANDLER, {3172, 9814, 20125}).
 
 %% seed(Alg) seeds RNG with runtime dependent values
 %% and return the NEW state
@@ -105,11 +96,9 @@ seed(Alg) ->
 
 -spec seed_s(alg() | {alg(), alg_seed()}) -> state().
 seed_s(Alg) when is_atom(Alg) ->
-    seed_s(Alg, erlang:now());
-    % code here will be enabled when these functions are available
-    % seed_s(Alg, {erlang:phash2([{node(),self()}]),
-    %		 erlang:monotonic_time(),
-	%   	 erlang:time_offset()});
+    seed_s(Alg, {erlang:phash2([{node(),self()}]),
+		 erlang:monotonic_time(),
+		 erlang:time_offset()});
 seed_s({Alg0, Seed}) ->
     {Alg,_SeedFun} = mk_alg(Alg0),
     {Alg, Seed}.
@@ -409,13 +398,11 @@ exs1024_calc(S0, S1) ->
 -spec exs1024_next(exs1024_state()) ->
         {uint64(), exs1024_state()}.
 
-exs1024_next({[H], RL}) ->
-    exs1024_next({[H|lists:reverse(RL)], []});
-exs1024_next({L, RL}) ->
-    [S0|L2] = L,
-    [S1|L3] = L2,
+exs1024_next({[S0,S1|L3], RL}) ->
     {X, NS1} = exs1024_calc(S0, S1),
-    {X, {[NS1|L3], [S0|RL]}}.
+    {X, {[NS1|L3], [S0|RL]}};
+exs1024_next({[H], RL}) ->
+    exs1024_next({[H|lists:reverse(RL)], []}).
 
 %% Generate a list of 16 64-bit element list
 %% of the xorshift64star random sequence
@@ -1072,4 +1059,3 @@ tinymt_uniform(R0) ->
 tinymt_uniform(Max, R) ->
     R1 = tinymt_next_state(R),
     {(tinymt_temper(R1) rem Max) + 1, R1}.
-

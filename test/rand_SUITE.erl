@@ -17,14 +17,19 @@
 %% %CopyrightEnd%
 
 -module(rand_SUITE).
--export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
-	 init_per_group/2,end_per_group/2]).
+-export([all/0, suite/0,groups/0,
+	 init_per_suite/1, end_per_suite/1,
+	 init_per_group/2,end_per_group/2,
+	 init_per_testcase/2, end_per_testcase/2
+	]).
 
 -export([interval_1/1, seed0/1, seed/1,
          exs64/1, exs1024/1, as183/1, exsplus/1,
-         sfmt/1, tinymt/1]).
+         sfmt/1, tinymt/1,
+	 measure/1
+	]).
 
--export([init_per_testcase/2, end_per_testcase/2]).
+-export([test/0]).
 
 -include_lib("test_server/include/test_server.hrl").
 
@@ -32,7 +37,7 @@
 -define(default_timeout, ?t:minutes(1)).
 
 init_per_testcase(_Case, Config) ->
-    ?line Dog = ?t:timetrap(?default_timeout),
+    Dog = ?t:timetrap(?default_timeout),
     [{watchdog, Dog} | Config].
 end_per_testcase(_Case, Config) ->
     Dog = ?config(watchdog, Config),
@@ -43,8 +48,10 @@ suite() -> [{ct_hooks,[ts_install_cth]}].
 
 all() -> 
     [interval_1, seed0, seed,
-        exs64, exs1024, as183, exsplus,
-        sfmt, tinymt].
+     exs64, exs1024, as183, exsplus,
+     sfmt, tinymt,
+     measure
+    ].
 
 groups() -> 
     [].
@@ -61,23 +68,35 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+%% A simple helper to test without test_server during dev
+test() ->
+    Tests = all(),
+    lists:foreach(fun(Test) ->
+			  try
+			      ok = ?MODULE:Test([]),
+			      io:format("~p: ok~n", [Test])
+			  catch _:Reason ->
+				  io:format("Failed: ~p: ~p ~p~n",
+					    [Test, Reason, erlang:get_stacktrace()])
+			  end
+		  end, Tests).
 
 seed0(doc) ->
     ["Test that seed is set implicitly, and always the same."];
 seed0(suite) ->
     [];
 seed0(Config) when is_list(Config) ->
-    ?line Self = self(),
-    ?line _ = spawn(fun() -> Self ! random:uniform() end),
-    ?line F1 = receive
+    Self = self(),
+    _ = spawn(fun() -> Self ! random:uniform() end),
+    F1 = receive
 		   Fa -> Fa
 	  end,
-    ?line _ = spawn(fun() -> random:seed(),
+    _ = spawn(fun() -> random:seed(),
 			     Self ! random:uniform() end),
-    ?line F2 = receive
+    F2 = receive
 		   Fb -> Fb
 	       end,
-    ?line F1 = F2,
+    F1 = F2,
     ok.
 
 seed(doc) ->
@@ -85,25 +104,25 @@ seed(doc) ->
 seed(suite) ->
     [];
 seed(Config) when is_list(Config) ->
-    ?line Self = self(),
-    ?line Seed = {S1, S2, S3} = now(),
-    ?line _ = spawn(fun() ->
+    Self = self(),
+    Seed = {S1, S2, S3} = now(),
+    _ = spawn(fun() ->
     	random:seed(S1,S2,S3),
     	Rands = lists:foldl(fun
 	    (_, Out) -> [random:uniform(10000)|Out]
 	end, [], lists:seq(1,100)),
     	Self ! {seed_test, Rands}
     end),
-    ?line Rands1 = receive {seed_test, R1s} -> R1s end,
-    ?line _ = spawn(fun() ->
+    Rands1 = receive {seed_test, R1s} -> R1s end,
+    _ = spawn(fun() ->
     	random:seed(Seed),
     	Rands = lists:foldl(fun
 	    (_, Out) -> [random:uniform(10000)|Out]
 	end, [], lists:seq(1,100)),
     	Self ! {seed_test, Rands}
     end),
-    ?line Rands2 = receive {seed_test, R2s} -> R2s end,
-    ?line Rands1 = Rands2,
+    Rands2 = receive {seed_test, R2s} -> R2s end,
+    Rands1 = Rands2,
     ok.
 
 
@@ -112,9 +131,9 @@ interval_1(doc) ->
 interval_1(suite) ->
     [];
 interval_1(Config) when is_list(Config) ->
-    ?line Top = 7,
-    ?line N = 10,
-    ?line check_interval(N, Top),
+    Top = 7,
+    N = 10,
+    check_interval(N, Top),
     ok.
 
 check_interval(0, _) -> ok;
@@ -135,7 +154,7 @@ exs64(doc) ->
 exs64(suite) ->
     [];
 exs64(Config) when is_list(Config) ->
-    ?line check_exs64(),
+    check_exs64(),
     ok.
 
 check_exs64() ->
@@ -195,7 +214,7 @@ exs1024(doc) ->
 exs1024(suite) ->
     [];
 exs1024(Config) when is_list(Config) ->
-    ?line check_exs1024(),
+    check_exs1024(),
     ok.
 
 check_exs1024() ->
@@ -245,7 +264,7 @@ as183(doc) ->
 as183(suite) ->
     [];
 as183(Config) when is_list(Config) ->
-    ?line check_as183(),
+    check_as183(),
     ok.
 
 check_as183() ->
@@ -296,7 +315,7 @@ exsplus(doc) ->
 exsplus(suite) ->
     [];
 exsplus(Config) when is_list(Config) ->
-    ?line check_exsplus(),
+    check_exsplus(),
     ok.
 
 check_exsplus() ->
@@ -347,7 +366,7 @@ sfmt(doc) ->
 sfmt(suite) ->
     [];
 sfmt(Config) when is_list(Config) ->
-    ?line check_sfmt(),
+    check_sfmt(),
     ok.
 
 check_sfmt() ->
@@ -397,7 +416,7 @@ tinymt(doc) ->
 tinymt(suite) ->
     [];
 tinymt(Config) when is_list(Config) ->
-    ?line check_tinymt(),
+    check_tinymt(),
     ok.
 
 check_tinymt() ->
@@ -414,30 +433,64 @@ check_tinymt() ->
     end.
 
 check_tinymt_refval() ->
-[0.5703577165259048,0.1814315487863496,0.7458983560791239,0.23053909291047603,
- 0.4883896171813831,0.5155433615436777,0.3505926994839683,0.0665464015910402,
- 0.4378358657704666,0.821193982497789,0.30565970309544355,0.35981045837979764,
- 0.6423892675666139,0.29299599572550505,0.8562644548946992,
- 0.14726816990878433,0.4310209684772417,0.5643223318038508,
- 0.23453634895849973,0.8065952364122495,0.20946889405604452,
- 0.6843150007771328,0.043553557829000056,0.5771734161535278,
- 0.8335008326685056,0.7231643946142867,0.25688639690633863,0.5971903611207381,
- 0.5601814513793215,0.5287215829594061,0.7804134810576215,0.7334948532516137,
- 0.5575394466286525,0.8407785516465083,0.7281161498976871,0.768241738085635,
- 0.8349022268084809,0.442897088942118,0.45066577882971615,0.23923022474627942,
- 0.9943235545651987,0.4069731073686853,0.7178575050784275,0.8088395759696141,
- 0.7168939482653514,0.7085540754487738,0.8264842525823042,0.4498947848333046,
- 0.08920374198351055,0.7427545312093571,0.462874993798323,0.5156054542167112,
- 0.7805743188364431,0.7199262323556468,0.34429542312864214,0.887186341569759,
- 0.5685941727133468,0.33160525641869754,0.55286214442458,0.8911545340670273,
- 0.8825070121092722,0.7090685685398057,0.3421385429101065,0.7120723618427292,
- 0.7726886534364894,0.6353822265518829,0.1440499365562573,0.3781527924584225,
- 0.21939886861946434,0.21402402489911765,0.11829828738700598,
- 0.557984653278254,0.9096598549513146,0.06266396457795054,0.4334203904727474,
- 0.1795676517067477,0.7551171021768823,0.978542817174457,0.4915714069502428,
- 0.14269480004440993,0.4326197992777452,0.4166521505685523,0.3223732871701941,
- 0.9766591611551121,0.37870982044842094,0.1186173694441095,0.3234717993764207,
- 0.5871884693624452,0.37381079385522753,0.919011707068421,0.9638229521224275,
- 0.4858195282286033,0.9533235196722671,0.4170187794370577,0.5364058961858973,
- 0.17174419190268964,0.004262298461981118,0.4617820450803265,
- 0.2493994649266824,0.4853041664464399].
+[0.5703577164094895,0.18143154866993427,0.7458983559627086,0.2305390927940607,
+ 0.48838961706496775,0.5155433614272624,0.350592699367553,0.06654640147462487,
+ 0.4378358656540513,0.8211939823813736,0.3056597029790282,0.3598104582633823,
+ 0.6423892674501985,0.29299599560908973,0.8562644547782838,0.147268169792369,
+ 0.4310209683608264,0.5643223316874355,0.2345363488420844,0.8065952362958342,
+ 0.2094688939396292,0.6843150006607175,0.043553557712584734,
+ 0.5771734160371125,0.8335008325520903,0.7231643944978714,0.2568863967899233,
+ 0.5971903610043228,0.5601814512629062,0.5287215828429908,0.7804134809412062,
+ 0.7334948531351984,0.5575394465122372,0.840778551530093,0.7281161497812718,
+ 0.7682417379692197,0.8349022266920656,0.44289708882570267,0.4506657787133008,
+ 0.2392302246298641,0.9943235544487834,0.40697310725227,0.7178575049620122,
+ 0.8088395758531988,0.716893948148936,0.7085540753323585,0.8264842524658889,
+ 0.44989478471688926,0.08920374186709523,0.7427545310929418,
+ 0.46287499368190765,0.5156054541002959,0.7805743187200278,0.7199262322392315,
+ 0.3442954230122268,0.8871863414533436,0.5685941725969315,0.3316052563022822,
+ 0.5528621443081647,0.891154533950612,0.8825070119928569,0.7090685684233904,
+ 0.34213854279369116,0.7120723617263138,0.7726886533200741,0.6353822264354676,
+ 0.14404993643984199,0.37815279234200716,0.21939886850304902,
+ 0.21402402478270233,0.11829828727059066,0.5579846531618387,
+ 0.9096598548348993,0.06266396446153522,0.43342039035633206,
+ 0.1795676515903324,0.755117102060467,0.9785428170580417,0.4915714068338275,
+ 0.1426947999279946,0.43261979916132987,0.416652150452137,0.32237328705377877,
+ 0.9766591610386968,0.3787098203320056,0.11861736932769418,
+ 0.32347179926000535,0.5871884692460299,0.3738107937388122,0.9190117069520056,
+ 0.9638229520060122,0.485819528112188,0.9533235195558518,0.41701877932064235,
+ 0.536405896069482,0.17174419178627431,0.004262298345565796,
+ 0.4617820449639112,0.2493994648102671,0.4853041663300246].
+
+
+-define(LOOP, 1000000).
+
+measure(Suite) when is_atom(Suite) -> [];
+measure(_Config) ->
+    Algos = [as183, exs64, exsplus, exs1024, sfmt, tinymt],
+    _ = [measure_1(Algo) || Algo <- Algos],
+    ok.
+
+measure_1(Algo) ->
+    Parent = self(),
+    Pid = spawn_link(fun() ->
+			     Fun = fun() -> measure_2(?LOOP, rand:seed_s(Algo)) end,
+			     {Time, ok} = timer:tc(Fun),
+			     io:format("~.10w: ~pµs~n", [Algo, Time]),
+			     Parent ! {self(), ok},
+			     normal
+		     end),
+    receive
+	{Pid, Msg} -> Msg
+    end.
+
+measure_2(N, State0) when N > 0 ->
+    case rand:uniform_s(State0) of
+	{Random, State}
+	  when is_integer(Random), Random >= 1, Random =< 100000 ->
+	    measure_2(N-1, State);
+	{Random, State} when is_float(Random), Random > 0, Random < 1 ->
+	    measure_2(N-1, State);
+	Res ->
+	    exit({error, Res, State0})
+    end;
+measure_2(0, _) -> ok.
