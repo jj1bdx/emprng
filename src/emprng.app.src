@@ -3,15 +3,6 @@
     {vsn, "0.2.0"},
     {env, []},
     {registered, []},
-    {modules,
-        [emprng,
-         emprng_as183,
-         emprng_exs1024,
-         emprng_exs64,
-         emprng_exsplus,
-         emprng_sfmt,
-         emprng_tinymt,
-         random
-        ]},
+    {modules, [rand]},
     {applications, [kernel, stdlib]}
 ]}.

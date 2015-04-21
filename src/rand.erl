@@ -274,6 +274,7 @@ as183_uniform(N, State0) ->
 -type exs64_state() :: uint64().
 
 -define(UINT32MASK, 16#ffffffff).
+-define(UINT37MASK, 16#0000001fffffffff).
 -define(UINT64MASK, 16#ffffffffffffffff).
 
 %% Advance xorshift64star state for one step.
@@ -285,7 +286,7 @@ as183_uniform(N, State0) ->
 
 exs64_next(R) ->
     R1 = R bxor (R bsr 12),
-    R2 = R1 bxor ((R1 bsl 25) band ?UINT64MASK),
+    R2 = R1 bxor ((R1 band ?UINT37MASK) bsl 25),
     R3 = R2 bxor (R2 bsr 27),
     {(R3 * 2685821657736338717) band ?UINT64MASK, R3}.
 
@@ -386,6 +387,8 @@ exsplus_uniform(Max, R) ->
 
 -type exs1024_state() :: {list(uint64()), list(uint64())}.
 
+-define(UINT33MASK, 16#1ffffffff).
+
 %% Calculation of xorshift1024star.
 %% exs1024_calc(S0, S1) -> {X, NS1}.
 %% X: random number output
@@ -393,7 +396,7 @@ exsplus_uniform(Max, R) ->
 -spec exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
 
 exs1024_calc(S0, S1) ->
-    S11 = S1 bxor ((S1 bsl 31) band ?UINT64MASK),
+    S11 = S1 bxor ((S1 band ?UINT33MASK) bsl 31),
     S12 = S11 bxor (S11 bsr 11),
     S01 = S0 bxor (S0 bsr 30),
     NS1 = S01 bxor S12,
