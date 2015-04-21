@@ -274,7 +274,7 @@ as183_uniform(N, State0) ->
 -type exs64_state() :: uint64().
 
 -define(UINT32MASK, 16#ffffffff).
--define(UINT37MASK, 16#0000001fffffffff).
+-define(UINT39MASK, 16#0000007fffffffff).
 -define(UINT64MASK, 16#ffffffffffffffff).
 
 %% Advance xorshift64star state for one step.
@@ -286,7 +286,7 @@ as183_uniform(N, State0) ->
 
 exs64_next(R) ->
     R1 = R bxor (R bsr 12),
-    R2 = R1 bxor ((R1 band ?UINT37MASK) bsl 25),
+    R2 = R1 bxor ((R1 band ?UINT39MASK) bsl 25),
     R3 = R2 bxor (R2 bsr 27),
     {(R3 * 2685821657736338717) band ?UINT64MASK, R3}.
 
