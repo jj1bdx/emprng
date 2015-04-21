@@ -262,9 +262,38 @@ as183_uniform(N, State0) ->
 
 -type exs64_state() :: uint64().
 
--define(UINT32MASK, 16#ffffffff).
--define(UINT37MASK, 16#0000001fffffffff).
+-define(UINT32MASK, 16#00000000ffffffff).
+-define(UINT58MASK, 16#03ffffffffffffff).
 -define(UINT64MASK, 16#ffffffffffffffff).
+-define(UINT64f,    18446744073709551616.0).
+-define(UINT58f,    288230376151711744.0).
+
+-define(USE_64b, 1).
+
+-ifndef(USE_64b).
+-define(UINTMAXMASK, ?UINT58MASK).
+-define(UINTMAXf,    ?UINT58f).
+-else.
+-define(UINTMAXMASK, ?UINT64MASK).
+-define(UINTMAXf,    ?UINT64f).
+-endif.
+
+-define(EXS_BS_1,   12).
+-define(EXS_BS_2,   25).
+-define(EXS_BS_3,   27).
+
+-define(EXSPLUS_BS_1,   23).
+-define(EXSPLUS_BS_2,   17).
+-define(EXSPLUS_BS_3,   26).
+
+-define(EXS1024_BS_1,   31).
+-define(EXS1024_BS_2,   11).
+-define(EXS1024_BS_3,   30).
+
+-define(EXS_BS_MASK, (?UINTMAXMASK bsr ?EXS_BS_2)).
+-define(EXSPLUS_BS_MASK, (?UINTMAXMASK bsr ?EXSPLUS_BS_1)).
+-define(EXS1024_BS_MASK, (?UINTMAXMASK bsr ?EXS1024_BS_1)).
+
 
 %% Advance xorshift64star state for one step.
 %% and generate 64bit unsigned integer from
@@ -274,10 +303,10 @@ as183_uniform(N, State0) ->
         {uint64(), exs64_state()}.
 
 exs64_next(R) ->
-    R1 = R bxor (R bsr 12),
-    R2 = R1 bxor ((R1 band ?UINT37MASK) bsl 25),
-    R3 = R2 bxor (R2 bsr 27),
-    {(R3 * 2685821657736338717) band ?UINT64MASK, R3}.
+    R1 = R  bxor (R bsr ?EXS_BS_1),
+    R2 = R1 bxor ((R1 band ?EXS_BS_MASK) bsl ?EXS_BS_2),
+    R3 = R2 bxor (R2 bsr ?EXS_BS_3),
+    {(R3 * 2685821657736338717) band ?UINTMAXMASK, R3}.
 
 %%-----------------------------------------------------------------------
 
@@ -291,13 +320,13 @@ exs64_seed({A1, A2, A3}) ->
     {V1, _} = exs64_next(((A1 band ?UINT32MASK) * 4294967197 + 1)),
     {V2, _} = exs64_next(((A2 band ?UINT32MASK) * 4294967231 + 1)),
     {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
-    ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
+    ((V1 * V2 * V3) rem (?UINTMAXMASK - 1)) + 1.
 
 %% Generate float from given xorshift64star internal state.
 
 exs64_uniform(R0) ->
     {V, R1} = exs64_next(R0),
-    {V / 18446744073709551616.0, R1}.
+    {V / ?UINTMAXf, R1}.
 
 %% Generate integer from given xorshift64star internal state.
 
@@ -326,10 +355,9 @@ exs64_uniform(Max, R) ->
 
 %% Note: members s0 and s1 are swapped here
 exsplus_next([S1|S0]) ->
-    S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
-    S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
-    {(S0 + S12) band ?UINT64MASK,
-     [S0|S12]}.
+    S11 = (S1 bxor ((S1 band ?EXSPLUS_BS_MASK) bsl ?EXSPLUS_BS_1)) ,
+    S12 = S11 bxor S0 bxor (S11 bsr ?EXSPLUS_BS_2) bxor (S0 bsr ?EXSPLUS_BS_3),
+    {(S0 + S12) band ?UINTMAXMASK, [S0|S12]}.
 
 %%-----------------------------------------------------------------------
 
@@ -340,9 +368,9 @@ exsplus_next([S1|S0]) ->
 %% Multiplicands here are three 32-bit primes
 
 exsplus_seed({A1, A2, A3}) ->
-    {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINT64MASK)|
-			    (((A2 * 4294967231) + 1) band ?UINT64MASK)]),
-    {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINT64MASK)|
+    {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINTMAXMASK)|
+			    (((A2 * 4294967231) + 1) band ?UINTMAXMASK)]),
+    {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINTMAXMASK)|
 			    tl(R1)]),
     R2.
 
@@ -350,7 +378,7 @@ exsplus_seed({A1, A2, A3}) ->
 
 exsplus_uniform(R0) ->
     {I, R1} = exsplus_next(R0),
-    {I / 18446744073709551616.0, R1}.
+    {I / ?UINTMAXf, R1}.
 
 %% Generate integer from given xorshift128plus internal state.
 
@@ -370,8 +398,6 @@ exsplus_uniform(Max, R) ->
 
 -type exs1024_state() :: {list(uint64()), list(uint64())}.
 
--define(UINT33MASK, 16#1ffffffff).
-
 %% Calculation of xorshift1024star.
 %% exs1024_calc(S0, S1) -> {X, NS1}.
 %% X: random number output
@@ -379,11 +405,11 @@ exsplus_uniform(Max, R) ->
 -spec exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
 
 exs1024_calc(S0, S1) ->
-    S11 = S1 bxor ((S1 band ?UINT33MASK) bsl 31),
-    S12 = S11 bxor (S11 bsr 11),
-    S01 = S0 bxor (S0 bsr 30),
+    S11 = S1 bxor ((S1 band ?EXS1024_BS_MASK) bsl ?EXS1024_BS_1),
+    S12 = S11 bxor (S11 bsr ?EXS1024_BS_2),
+    S01 = S0 bxor (S0 bsr ?EXS1024_BS_3),
     NS1 = S01 bxor S12,
-    {(NS1 * 1181783497276652981) band ?UINT64MASK, NS1}.
+    {(NS1 * 1181783497276652981) band ?UINTMAXMASK, NS1}.
 
 %% Advance xorshift1024star state for one step.
 %% and generate 64bit unsigned integer from
@@ -433,14 +459,14 @@ exs1024_seed({A1, A2, A3}) ->
     B1 = (((A1 band ?UINT21MASK) + 1) * 2097131) band ?UINT21MASK,
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
     B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
-    {exs1024_gen1024(
-		(B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
+    Seed = (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1,
+    {exs1024_gen1024(Seed band ?UINTMAXMASK), []}.
 
 %% Generate float from given xorshift1024star internal state.
 
 exs1024_uniform(R0) ->
     {V, R1} = exs1024_next(R0),
-    {V / 18446744073709551616.0, R1}.
+    {V / ?UINTMAXf, R1}.
 
 %% Generate integer from given xorshift1024star internal state.
 
@@ -639,7 +665,7 @@ sfmt_period_certification(Int) ->
     [I0, I1, I2, I3 | _ ] = Int,
     In0 = (I0 band ?SFMT_PARITY1) bxor
 	(I1 band ?SFMT_PARITY2) bxor
-	(I2 band ?SFMT_PARITY3) bxor	
+	(I2 band ?SFMT_PARITY3) bxor
 	(I3 band ?SFMT_PARITY4),
     In1 = In0 bxor (In0 bsr 16),
     In2 = In1 bxor (In1 bsr 8),
