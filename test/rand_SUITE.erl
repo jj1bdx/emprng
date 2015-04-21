@@ -17,14 +17,19 @@
 %% %CopyrightEnd%
 
 -module(rand_SUITE).
--export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
-	 init_per_group/2,end_per_group/2]).
+-export([all/0, suite/0,groups/0,
+	 init_per_suite/1, end_per_suite/1,
+	 init_per_group/2,end_per_group/2,
+	 init_per_testcase/2, end_per_testcase/2
+	]).
 
 -export([interval_1/1, seed0/1, seed/1,
          exs64/1, exs1024/1, as183/1, exsplus/1,
-         sfmt/1, tinymt/1]).
+         sfmt/1, tinymt/1,
+	 measure/1
+	]).
 
--export([init_per_testcase/2, end_per_testcase/2]).
+-export([test/0]).
 
 -include_lib("test_server/include/test_server.hrl").
 
@@ -32,7 +37,7 @@
 -define(default_timeout, ?t:minutes(1)).
 
 init_per_testcase(_Case, Config) ->
-    ?line Dog = ?t:timetrap(?default_timeout),
+    Dog = ?t:timetrap(?default_timeout),
     [{watchdog, Dog} | Config].
 end_per_testcase(_Case, Config) ->
     Dog = ?config(watchdog, Config),
@@ -43,8 +48,10 @@ suite() -> [{ct_hooks,[ts_install_cth]}].
 
 all() -> 
     [interval_1, seed0, seed,
-        exs64, exs1024, as183, exsplus,
-        sfmt, tinymt].
+     exs64, exs1024, as183, exsplus,
+     sfmt, tinymt,
+     measure
+    ].
 
 groups() -> 
     [].
@@ -61,23 +68,35 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+%% A simple helper to test without test_server during dev
+test() ->
+    Tests = all(),
+    lists:foreach(fun(Test) ->
+			  try
+			      ok = ?MODULE:Test([]),
+			      io:format("~p: ok~n", [Test])
+			  catch _:Reason ->
+				  io:format("Failed: ~p: ~p ~p~n",
+					    [Test, Reason, erlang:get_stacktrace()])
+			  end
+		  end, Tests).
 
 seed0(doc) ->
     ["Test that seed is set implicitly, and always the same."];
 seed0(suite) ->
     [];
 seed0(Config) when is_list(Config) ->
-    ?line Self = self(),
-    ?line _ = spawn(fun() -> Self ! random:uniform() end),
-    ?line F1 = receive
+    Self = self(),
+    _ = spawn(fun() -> Self ! random:uniform() end),
+    F1 = receive
 		   Fa -> Fa
 	  end,
-    ?line _ = spawn(fun() -> random:seed(),
+    _ = spawn(fun() -> random:seed(),
 			     Self ! random:uniform() end),
-    ?line F2 = receive
+    F2 = receive
 		   Fb -> Fb
 	       end,
-    ?line F1 = F2,
+    F1 = F2,
     ok.
 
 seed(doc) ->
@@ -85,25 +104,25 @@ seed(doc) ->
 seed(suite) ->
     [];
 seed(Config) when is_list(Config) ->
-    ?line Self = self(),
-    ?line Seed = {S1, S2, S3} = now(),
-    ?line _ = spawn(fun() ->
+    Self = self(),
+    Seed = {S1, S2, S3} = now(),
+    _ = spawn(fun() ->
     	random:seed(S1,S2,S3),
     	Rands = lists:foldl(fun
 	    (_, Out) -> [random:uniform(10000)|Out]
 	end, [], lists:seq(1,100)),
     	Self ! {seed_test, Rands}
     end),
-    ?line Rands1 = receive {seed_test, R1s} -> R1s end,
-    ?line _ = spawn(fun() ->
+    Rands1 = receive {seed_test, R1s} -> R1s end,
+    _ = spawn(fun() ->
     	random:seed(Seed),
     	Rands = lists:foldl(fun
 	    (_, Out) -> [random:uniform(10000)|Out]
 	end, [], lists:seq(1,100)),
     	Self ! {seed_test, Rands}
     end),
-    ?line Rands2 = receive {seed_test, R2s} -> R2s end,
-    ?line Rands1 = Rands2,
+    Rands2 = receive {seed_test, R2s} -> R2s end,
+    Rands1 = Rands2,
     ok.
 
 
@@ -112,9 +131,9 @@ interval_1(doc) ->
 interval_1(suite) ->
     [];
 interval_1(Config) when is_list(Config) ->
-    ?line Top = 7,
-    ?line N = 10,
-    ?line check_interval(N, Top),
+    Top = 7,
+    N = 10,
+    check_interval(N, Top),
     ok.
 
 check_interval(0, _) -> ok;
@@ -135,7 +154,7 @@ exs64(doc) ->
 exs64(suite) ->
     [];
 exs64(Config) when is_list(Config) ->
-    ?line check_exs64(),
+    check_exs64(),
     ok.
 
 check_exs64() ->
@@ -195,7 +214,7 @@ exs1024(doc) ->
 exs1024(suite) ->
     [];
 exs1024(Config) when is_list(Config) ->
-    ?line check_exs1024(),
+    check_exs1024(),
     ok.
 
 check_exs1024() ->
@@ -245,7 +264,7 @@ as183(doc) ->
 as183(suite) ->
     [];
 as183(Config) when is_list(Config) ->
-    ?line check_as183(),
+    check_as183(),
     ok.
 
 check_as183() ->
@@ -296,7 +315,7 @@ exsplus(doc) ->
 exsplus(suite) ->
     [];
 exsplus(Config) when is_list(Config) ->
-    ?line check_exsplus(),
+    check_exsplus(),
     ok.
 
 check_exsplus() ->
@@ -347,7 +366,7 @@ sfmt(doc) ->
 sfmt(suite) ->
     [];
 sfmt(Config) when is_list(Config) ->
-    ?line check_sfmt(),
+    check_sfmt(),
     ok.
 
 check_sfmt() ->
@@ -398,7 +417,7 @@ tinymt(doc) ->
 tinymt(suite) ->
     [];
 tinymt(Config) when is_list(Config) ->
-    ?line check_tinymt(),
+    check_tinymt(),
     ok.
 
 check_tinymt() ->
@@ -442,3 +461,37 @@ check_tinymt_refval() ->
  0.9638229520060122,0.485819528112188,0.9533235195558518,0.41701877932064235,
  0.536405896069482,0.17174419178627431,0.004262298345565796,
  0.4617820449639112,0.2493994648102671,0.4853041663300246].
+
+
+-define(LOOP, 1000000).
+
+measure(Suite) when is_atom(Suite) -> [];
+measure(_Config) ->
+    Algos = [as183, exs64, exsplus, exs1024, sfmt, tinymt],
+    _ = [measure_1(Algo) || Algo <- Algos],
+    ok.
+
+measure_1(Algo) ->
+    Parent = self(),
+    Pid = spawn_link(fun() ->
+			     Fun = fun() -> measure_2(?LOOP, rand:seed_s(Algo)) end,
+			     {Time, ok} = timer:tc(Fun),
+			     io:format("~.10w: ~pµs~n", [Algo, Time]),
+			     Parent ! {self(), ok},
+			     normal
+		     end),
+    receive
+	{Pid, Msg} -> Msg
+    end.
+
+measure_2(N, State0) when N > 0 ->
+    case rand:uniform_s(State0) of
+	{Random, State}
+	  when is_integer(Random), Random >= 1, Random =< 100000 ->
+	    measure_2(N-1, State);
+	{Random, State} when is_float(Random), Random > 0, Random < 1 ->
+	    measure_2(N-1, State);
+	Res ->
+	    exit({error, Res, State0})
+    end;
+measure_2(0, _) -> ok.
