@@ -315,9 +315,7 @@ exs64_uniform(Max, R) ->
 %% Internally represented as the record <code>#state{}</code>,
 %% of the 128bit seed.
 
--record(exsplus_state, {s0 :: uint64(), s1 :: uint64()}).
-
--type exsplus_state() :: #exsplus_state{}.
+-type exsplus_state() :: [integer()|integer()].
 
 %% Advance xorshift128plus state for one step.
 %% and generate 64bit unsigned integer from
@@ -327,11 +325,11 @@ exs64_uniform(Max, R) ->
     {uint64(), exsplus_state()}.
 
 %% Note: members s0 and s1 are swapped here
-exsplus_next(#exsplus_state{s0 = S1, s1 = S0}) ->
+exsplus_next([S1|S0]) ->
     S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
     S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
     {(S0 + S12) band ?UINT64MASK,
-        #exsplus_state{s0 = S0, s1 = S12}}.
+     [S0|S12]}.
 
 %%-----------------------------------------------------------------------
 
@@ -342,14 +340,10 @@ exsplus_next(#exsplus_state{s0 = S1, s1 = S0}) ->
 %% Multiplicands here are three 32-bit primes
 
 exsplus_seed({A1, A2, A3}) ->
-    {_, R1} = exsplus_next(
-               #exsplus_state{
-                   s0 = (((A1 * 4294967197) + 1) band ?UINT64MASK),
-                   s1 = (((A2 * 4294967231) + 1) band ?UINT64MASK)}),
-    {_, R2} = exsplus_next(
-               #exsplus_state{
-                   s0 = (((A3 * 4294967279) + 1) band ?UINT64MASK),
-                   s1 = R1#exsplus_state.s1}),
+    {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINT64MASK)|
+			    (((A2 * 4294967231) + 1) band ?UINT64MASK)]),
+    {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINT64MASK)|
+			    tl(R1)]),
     R2.
 
 %% Generate float from given xorshift128plus internal state.
