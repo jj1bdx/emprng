@@ -40,9 +40,6 @@
 -define(DEFAULT_ALG_HANDLER, exs64).
 -define(SEED_DICT, rand_seed).
 
--record(alg, {type=?OLD_ALG_HANDLER :: alg(),
-	      uniform :: fun(), uniform_n :: fun()}).
-
 %% =====================================================================
 %% Types
 %% =====================================================================
@@ -54,7 +51,10 @@
 %% This depends on the algorithm handler function
 -type alg_seed() :: any().
 %% This is the algorithm handler function within this module
--type alg_handler() :: #alg{}.
+-type alg_handler() :: #{type      => alg(),
+			 uniform   => fun(),
+			 uniform_n => fun()}.
+
 %% Internal state
 -type state() :: {alg_handler(), alg_seed()}.
 
@@ -71,12 +71,12 @@
 -spec export_seed() -> undefined | {alg(), alg_seed()}.
 export_seed() ->
     case seed_get() of
-	{#alg{type=Alg}, Seed} -> {Alg, Seed};
+	{#{type:=Alg}, Seed} -> {Alg, Seed};
 	_ -> undefined
     end.
 
 -spec export_seed(state()) -> {alg(), alg_seed()}.
-export_seed({#alg{type=Alg}, Seed}) -> {Alg, Seed}.
+export_seed({#{type:=Alg}, Seed}) -> {Alg, Seed}.
 
 %% seed0/0: returns the default state, including the state values
 %% and the algorithm handler.
@@ -149,7 +149,7 @@ uniform(N) ->
 %% and a new state.
 
 -spec uniform_s(state()) -> {float(), NewS :: state()}.
-uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
+uniform_s({Alg = #{uniform:=Uniform}, AS0}) ->
     {X, AS} = Uniform(AS0),
     {X, {Alg, AS}}.
 
@@ -159,7 +159,7 @@ uniform_s({Alg = #alg{uniform=Uniform}, AS0}) ->
 
 -spec uniform_s(N :: pos_integer(), state()) ->
 		       {pos_integer(), NewS :: state()}.
-uniform_s(N, {Alg = #alg{uniform_n=Uniform}, AS0})
+uniform_s(N, {Alg = #{uniform_n:=Uniform}, AS0})
   when is_integer(N), N >= 1 ->
     {X, AS} = Uniform(N, AS0),
     {X, {Alg, AS}}.
@@ -180,28 +180,28 @@ seed_get() ->
 
 %% Setup alg record
 mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
-    {#alg{type=as183, uniform=fun as183_uniform/1,
-	  uniform_n=fun as183_uniform/2},
+    {#{type=>as183, uniform=>fun as183_uniform/1,
+	  uniform_n=>fun as183_uniform/2},
      fun as183_seed/1};
 mk_alg(exs64) ->
-    {#alg{type=exs64, uniform=fun exs64_uniform/1,
-	  uniform_n=fun exs64_uniform/2},
+    {#{type=>exs64, uniform=>fun exs64_uniform/1,
+       uniform_n=>fun exs64_uniform/2},
      fun exs64_seed/1};
 mk_alg(exsplus) ->
-    {#alg{type=exsplus, uniform=fun exsplus_uniform/1,
-	  uniform_n=fun exsplus_uniform/2},
+    {#{type=>exsplus, uniform=>fun exsplus_uniform/1,
+       uniform_n=>fun exsplus_uniform/2},
      fun exsplus_seed/1};
 mk_alg(exs1024) ->
-    {#alg{type=exs1024, uniform=fun exs1024_uniform/1,
-	  uniform_n=fun exs1024_uniform/2},
+    {#{type=>exs1024, uniform=>fun exs1024_uniform/1,
+       uniform_n=>fun exs1024_uniform/2},
      fun exs1024_seed/1};
 mk_alg(sfmt) ->
-    {#alg{type=sfmt, uniform=fun sfmt_uniform/1,
-	  uniform_n=fun sfmt_uniform/2},
+    {#{type=>sfmt, uniform=>fun sfmt_uniform/1,
+       uniform_n=>fun sfmt_uniform/2},
      fun sfmt_seed/1};
 mk_alg(tinymt) ->
-    {#alg{type=tinymt, uniform=fun tinymt_uniform/1,
-	  uniform_n=fun tinymt_uniform/2},
+    {#{type=>tinymt, uniform=>fun tinymt_uniform/1,
+	  uniform_n=>fun tinymt_uniform/2},
      fun tinymt_seed/1}.
 
 
