@@ -33,6 +33,9 @@
 	 export_seed/0, export_seed/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
+-compile({inline, [exs64_next/1, exsplus_next/1,
+		   exs1024_next/1, exs1024_calc/2]}).
+
 -define(OLD_ALG_HANDLER, as183).
 -define(DEFAULT_ALG_HANDLER, exs64).
 -define(SEED_DICT, rand_seed).
