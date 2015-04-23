@@ -18,10 +18,7 @@
 %%
 %% =====================================================================
 %% Multiple PRNG module for Erlang/OTP
-%%
 %% Copyright (c) 2010-2015 Kenji Rikitake, Kyoto University.
-%%
-%% Author contact: kenji.rikitake@acm.org
 %% =====================================================================
 
 -module(rand).
@@ -33,7 +30,6 @@
 -compile({inline, [exs64_next/1, exsplus_next/1,
 		   exs1024_next/1, exs1024_calc/2]}).
 
--define(OLD_ALG_HANDLER, as183).
 -define(DEFAULT_ALG_HANDLER, exs64).
 -define(SEED_DICT, rand_seed).
 
@@ -41,24 +37,22 @@
 %% Types
 %% =====================================================================
 
--opaque(state). %% Implementation state
-
+-opaque(state).     %% Implementation state
 -opaque(alg_seed).  %% Algorithm dependent state
 
 %% This depends on the algorithm handler function
 -type alg_seed() :: any().
 %% This is the algorithm handler function within this module
 -type alg_handler() :: #{type      => alg(),
-			 uniform   => fun(),
-			 uniform_n => fun()}.
+			 next      => fun(),
+			 max       => integer()}.
 
 %% Internal state
 -type state() :: {alg_handler(), alg_seed()}.
 
--type alg() :: as183 | exs64 | exsplus | exs1024.
+-type alg() :: exs64 | exsplus | exs1024.
 
-%% export the alg_handler() type
--export_type([alg/0]).
+-export_type([alg/0, alg_handler/0]).
 
 %% =====================================================================
 %% API
@@ -169,10 +163,6 @@ seed_get() ->
     end.
 
 %% Setup alg record
-mk_alg(as183) ->  %% DEFAULT_ALG_HANDLER
-    {#{type=>as183, uniform=>fun as183_uniform/1,
-	  uniform_n=>fun as183_uniform/2},
-     fun as183_seed/1};
 mk_alg(exs64) ->
     {#{type=>exs64, uniform=>fun exs64_uniform/1,
        uniform_n=>fun exs64_uniform/2},
@@ -185,51 +175,6 @@ mk_alg(exs1024) ->
     {#{type=>exs1024, uniform=>fun exs1024_uniform/1,
        uniform_n=>fun exs1024_uniform/2},
      fun exs1024_seed/1}.
-
-
-%% =====================================================================
-%% AS183 PRNG
-%% =====================================================================
-
-%% Reasonable random number generator.
-%%  The method is attributed to B. A. Wichmann and I. D. Hill
-%%  See "An efficient and portable pseudo-random number generator",
-%%  Journal of Applied Statistics. AS183. 1982. Also Byte March 1987.
-
--define(PRIME1, 30269).
--define(PRIME2, 30307).
--define(PRIME3, 30323).
-
-%%-----------------------------------------------------------------------
-%% The type of the state
-
-%-type ran() :: {integer(), integer(), integer()}.
-
-%%-----------------------------------------------------------------------
-
-%% seed: seeding with three Integers
-
-as183_seed({A1, A2, A3}) ->
-    {(abs(A1) rem (?PRIME1-1)) + 1,   % Avoid seed numbers that are
-     (abs(A2) rem (?PRIME2-1)) + 1,   % even divisors of the
-     (abs(A3) rem (?PRIME3-1)) + 1}.  % corresponding primes.
-
-%% {uniform_s, State} -> {F, NewState}:
-%%  Returns a random float between 0 and 1, and new state.
-
-as183_uniform({A1, A2, A3}) ->
-    B1 = (A1*171) rem ?PRIME1,
-    B2 = (A2*172) rem ?PRIME2,
-    B3 = (A3*170) rem ?PRIME3,
-    R = B1/?PRIME1 + B2/?PRIME2 + B3/?PRIME3,
-    {R - trunc(R), {B1,B2,B3}}.
-
-%% {uniform_s, N, State} -> {I, NewState}
-%%  Given an integer N >= 1, returns a random integer between 1 and N.
-
-as183_uniform(N, State0) ->
-    {F, State1} = as183_uniform(State0),
-    {trunc(F * N) + 1, State1}.
 
 %% =====================================================================
 %% exs64 PRNG: Xorshift*64
