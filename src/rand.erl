@@ -18,7 +18,7 @@
 %%
 %% =====================================================================
 %% Multiple PRNG module for Erlang/OTP
-%% Copyright (c) 2015 Kenji Rikitake, Kyoto University.
+%% Copyright (c) 2015 Kenji Rikitake
 %% =====================================================================
 
 -module(rand).
