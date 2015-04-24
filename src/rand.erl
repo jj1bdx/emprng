@@ -265,7 +265,6 @@ exsplus_uniform(Max, State0) ->
 
 -type exs1024_state() :: {list(uint64()), list(uint64())}.
 
-%% TODO: this seeding has a room to improve.
 exs1024_seed({A1, A2, A3}) ->
     B1 = (((A1 band ?UINT21MASK) + 1) * 2097131) band ?UINT21MASK,
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
