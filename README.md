@@ -9,6 +9,10 @@
 * See individual files for the license details
 * `rand.erl` is licensed under [Erlang Public License](http://www.erlang.org/EPLICENSE)
 
+## Requirements
+
+* Erlang/OTP 18.0-rc1 and later
+
 ## Goals
 
 * Provide a substitute of Erlang/OTP `random` module
@@ -23,12 +27,9 @@
 
 ## Available PRNGs
 
-* AS183: OTP `random` module
 * [exs64](https://github.com/jj1bdx/exs64/) (Xorshift\*64)
 * [exsplus](https://github.com/jj1bdx/exsplus/) (Xorshift+128)
 * [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift\*1024)
-* [sfmt-erlang](https://github.com/jj1bdx/sfmt-erlang/) (SFMT19937)
-* [tinymt-erlang](https://github.com/jj1bdx/tinymt-erlang/) (TinyMT)
 
 ## Acknowledgments
 
