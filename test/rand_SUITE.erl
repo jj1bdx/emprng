@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
+%%
 %% Copyright Ericsson AB 2000-2011. All Rights Reserved.
-%% 
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 
 -module(rand_SUITE).
@@ -23,9 +23,9 @@
 	 init_per_testcase/2, end_per_testcase/2
 	]).
 
--export([interval_1/1, seed0/1, seed/1,
-         exs64/1, exs1024/1, exsplus/1,
-	 measure/1
+-export([interval_int/1, interval_float/1, seed/1,
+         api_eq/1, reference/1, basic_stats/1,
+	 plugin/1, measure/1
 	]).
 
 -export([test/0, gen/1]).
@@ -46,26 +46,21 @@ end_per_testcase(_Case, Config) ->
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
-all() -> 
-    [interval_1, seed0, seed,
-     exs64, exs1024, exsplus,
-     measure
+all() ->
+    [seed, interval_int, interval_float,
+     api_eq,
+     reference,
+     basic_stats,
+     plugin, measure
     ].
 
-groups() -> 
-    [].
+groups() -> [].
 
-init_per_suite(Config) ->
-    Config.
+init_per_suite(Config) ->  Config.
+end_per_suite(_Config) -> ok.
 
-end_per_suite(_Config) ->
-    ok.
-
-init_per_group(_GroupName, Config) ->
-    Config.
-
-end_per_group(_GroupName, Config) ->
-    Config.
+init_per_group(_GroupName, Config) -> Config.
+end_per_group(_GroupName, Config) ->  Config.
 
 %% A simple helper to test without test_server during dev
 test() ->
@@ -80,88 +75,181 @@ test() ->
 			  end
 		  end, Tests).
 
-seed0(doc) ->
-    ["Test that seed is set implicitly, and always the same."];
-seed0(suite) ->
-    [];
-seed0(Config) when is_list(Config) ->
-    Self = self(),
-    _ = spawn(fun() -> Self ! random:uniform() end),
-    F1 = receive
-		   Fa -> Fa
-	  end,
-    _ = spawn(fun() -> random:seed(),
-			     Self ! random:uniform() end),
-    F2 = receive
-		   Fb -> Fb
-	       end,
-    F1 = F2,
-    ok.
+algs() ->
+    [exs64, exsplus, exs1024].
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 seed(doc) ->
-    ["Test that seed/1 and seed/3 is equivalent."];
+    ["Test that seed and seed_s and export_seed/0 is working."];
 seed(suite) ->
     [];
 seed(Config) when is_list(Config) ->
-    Self = self(),
-    Seed = {S1, S2, S3} = now(),
-    _ = spawn(fun() ->
-    	random:seed(S1,S2,S3),
-    	Rands = lists:foldl(fun
-	    (_, Out) -> [random:uniform(10000)|Out]
-	end, [], lists:seq(1,100)),
-    	Self ! {seed_test, Rands}
-    end),
-    Rands1 = receive {seed_test, R1s} -> R1s end,
-    _ = spawn(fun() ->
-    	random:seed(Seed),
-    	Rands = lists:foldl(fun
-	    (_, Out) -> [random:uniform(10000)|Out]
-	end, [], lists:seq(1,100)),
-    	Self ! {seed_test, Rands}
-    end),
-    Rands2 = receive {seed_test, R2s} -> R2s end,
-    Rands1 = Rands2,
+    Algs = algs(),
+    Test = fun(Alg) ->
+		   try seed_1(Alg)
+		   catch _:Reason ->
+			   test_server:fail({Alg, Reason, erlang:get_stacktrace()})
+		   end
+	   end,
+    [Test(Alg) || Alg <- Algs],
     ok.
 
+seed_1(Alg) ->
+    %% Check that uniform seeds automatically,
+    _ = rand:uniform(),
+    S00 = get(rand_seed),
+    erase(),
+    _ = rand:uniform(),
+    false = S00 =:= get(rand_seed), %% hopefully
 
-interval_1(doc) ->
+    %% Choosing algo and seed
+    S0 = rand:seed(Alg, {0, 0, 0}),
+    %% Check that (documented?) process_dict variable is correct
+    S0 = get(rand_seed),
+    S0 = rand:seed_s(Alg, {0, 0, 0}),
+    %% Check that process_dict should not be used for seed_s functionality
+    _ = rand:seed_s(Alg, {1, 0, 0}),
+    S0 = get(rand_seed),
+    %% Test export
+    ES0 = rand:export_seed(),
+    ES0 = rand:export_seed_s(S0),
+    S0 = rand:seed(ES0),
+    S0 = rand:seed_s(ES0),
+    %% seed/1 calls should be unique
+    S1 = rand:seed(Alg),
+    false = (S1 =:= rand:seed_s(Alg)),
+    %% Negative integers works
+    _ = rand:seed_s(Alg, {-1,-1,-1}),
+
+    %% Other term do not work
+    {'EXIT', _} = (catch rand:seed_s(foobar, os:timestamp())),
+    {'EXIT', _} = (catch rand:seed_s(Alg, {asd, 1, 1})),
+    {'EXIT', _} = (catch rand:seed_s(Alg, {0, 234.1234, 1})),
+    {'EXIT', _} = (catch rand:seed_s(Alg, {0, 234, [1, 123, 123]})),
+    ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+api_eq(doc) ->
+    ["Check that both api's are consistent with each other."];
+api_eq(suite) ->
+    [];
+api_eq(_Config) ->
+    Algs = algs(),
+    Small = fun(Alg) ->
+		    Seed = rand:seed(Alg),
+		    api_eq_1(Seed)
+	    end,
+    _ = [Small(Alg) || Alg <- Algs],
+    ok.
+
+api_eq_1(S00) ->
+    Check = fun(_, Seed) ->
+		    {V0, S0} = rand:uniform_s(Seed),
+		    V0 = rand:uniform(),
+		    {V1, S1} = rand:uniform_s(1000000, S0),
+		    V1 = rand:uniform(1000000),
+		    S1
+	    end,
+    S1 = lists:foldl(Check, S00, lists:seq(1, 200)),
+    S1 = get(rand_seed),
+    Exported = rand:export_seed(),
+    Exported = rand:export_seed_s(S1),
+    {V0, S2} = rand:uniform_s(S1),
+    V0 = rand:uniform(),
+
+    S3 = lists:foldl(Check, S2, lists:seq(1, 200)),
+    S1 = rand:seed(Exported),
+    S1 = rand:seed_s(Exported),
+
+    S4 = lists:foldl(Check, S1, lists:seq(1, 200)),
+
+    %% Verify that we do not have loops
+    false = S1 =:= S2,
+    false = S2 =:= S3,
+    false = S3 =:= S4,
+
+    S1 = rand:seed(Exported),
+    S4 = lists:foldl(Check, S1, lists:seq(1, 200)),
+    ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+interval_int(doc) ->
     ["Check that uniform/1 returns values within the proper interval."];
-interval_1(suite) ->
+interval_int(suite) ->
     [];
-interval_1(Config) when is_list(Config) ->
-    Top = 7,
-    N = 10,
-    check_interval(N, Top),
+interval_int(Config) when is_list(Config) ->
+    Algs = algs(),
+    Small = fun(Alg) ->
+		    _ = rand:seed(Alg),
+		    Max = interval_int_1(100000, 7, 0),
+		    Max =:= 7 orelse exit({7, Alg, Max})
+	    end,
+    _ = [Small(Alg) || Alg <- Algs],
+    %% Test large integers
+    Large = fun(Alg) ->
+		    _ = rand:seed(Alg),
+		    Max = interval_int_1(100000, 1 bsl 128, 0),
+		    Max > 1 bsl 64 orelse exit({large, Alg, Max})
+	    end,
+    [Large(Alg) || Alg <- Algs],
     ok.
 
-check_interval(0, _) -> ok;
-check_interval(N, Top) ->
-    X = random:uniform(Top),
+interval_int_1(0, _, Max) -> Max;
+interval_int_1(N, Top, Max) ->
+    X = rand:uniform(Top),
     if
-	X < 1 ->
-	    test_server:fail(too_small);
-	X > Top ->
-	    test_server:fail(too_large);
+	0 < X, X =< Top ->
+	    ok;
 	true ->
-	    ok
+	    io:format("X=~p Top=~p 0<~p<~p~n", [X,Top,X,Top]),
+	    exit({X, rand:export_seed()})
     end,
-    check_interval(N-1, Top).
+    interval_int_1(N-1, Top, max(X, Max)).
 
-exs64(doc) ->
-    ["Check if exs64 algorithm generates the proper sequence."];
-exs64(suite) ->
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+interval_float(doc) ->
+    ["Check that uniform/0 returns values within the proper interval."];
+interval_float(suite) ->
     [];
-exs64(Config) when is_list(Config) ->
-    check_exs64(),
+interval_float(Config) when is_list(Config) ->
+    Algs = algs(),
+    Test = fun(Alg) ->
+		   _ = rand:seed(Alg),
+		   interval_float_1(100000)
+	   end,
+    [Test(Alg) || Alg <- Algs],
     ok.
 
-check_exs64() ->
-    Refval  = check_exs64_refval(),
-    Testval = gen(exs64),
+interval_float_1(0) -> ok;
+interval_float_1(N) ->
+    X = rand:uniform(),
+    if
+	0.0 < X, X < 1.0 ->
+	    ok;
+	true ->
+	    io:format("X=~p 0<~p<1.0~n", [X,X]),
+	    exit({X, rand:export_seed()})
+    end,
+    interval_float_1(N-1).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+reference(doc) -> ["Check if exs64 algorithm generates the proper sequence."];
+reference(suite) -> [];
+reference(Config) when is_list(Config) ->
+    [reference_1(Alg) || Alg <- algs()],
+    ok.
+
+reference_1(Alg) ->
+    Refval  = reference_val(Alg),
+    Testval = gen(Alg),
     case Refval =:= Testval of
         true -> ok;
-        Else -> test_server:fail(Else)
+        Else -> test_server:fail({Alg, Else})
     end.
 
 gen(Algo) ->
@@ -176,7 +264,143 @@ gen(N, State0, Acc) when N > 0 ->
     end;
 gen(_, _, Acc) -> lists:reverse(Acc).
 
-check_exs64_refval() ->
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% This just tests the basics so we have not made any serious errors
+%% when making the conversion from the original algorithms.
+%% The algorithms must have good properties to begin with
+%%
+
+basic_stats(doc) -> ["Check that the algorithms generate sound values."];
+basic_stats(suite) -> [];
+basic_stats(Config) when is_list(Config) ->
+    [basic_stats_1(?LOOP, rand:seed_s(Alg), 0.0, array:new([{default, 0}]))
+     || Alg <- algs()],
+    [basic_stats_2(?LOOP, rand:seed_s(Alg), 0, array:new([{default, 0}]))
+     || Alg <- algs()],
+    ok.
+
+basic_stats_1(N, S0, Sum, A0) when N > 0 ->
+    {X,S} = rand:uniform_s(S0),
+    I = trunc(X*100),
+    A = array:set(I, 1+array:get(I,A0), A0),
+    basic_stats_1(N-1, S, Sum+X, A);
+basic_stats_1(0, {#{type:=Alg}, _}, Sum, A) ->
+    AverN = Sum / ?LOOP,
+    io:format("~.10w: Average: ~.4f~n", [Alg, AverN]),
+    Counters = array:to_list(A),
+    Min = lists:min(Counters),
+    Max = lists:max(Counters),
+    io:format("~.10w: Min: ~p Max: ~p~n", [Alg, Min, Max]),
+
+    %% Verify that the basic statistics are ok
+    %% be gentle we don't want to see to many failing tests
+    abs(0.5 - AverN) < 0.005 orelse test_server:fail({average, Alg, AverN}),
+    abs(?LOOP div 100 - Min) < 1000 orelse test_server:fail({min, Alg, Min}),
+    abs(?LOOP div 100 - Max) < 1000 orelse test_server:fail({max, Alg, Max}),
+    ok.
+
+basic_stats_2(N, S0, Sum, A0) when N > 0 ->
+    {X,S} = rand:uniform_s(100, S0),
+    A = array:set(X-1, 1+array:get(X-1,A0), A0),
+    basic_stats_2(N-1, S, Sum+X, A);
+basic_stats_2(0, {#{type:=Alg}, _}, Sum, A) ->
+    AverN = Sum / ?LOOP,
+    io:format("~.10w: Average: ~.4f~n", [Alg, AverN]),
+    Counters = tl(array:to_list(A)),
+    Min = lists:min(Counters),
+    Max = lists:max(Counters),
+    io:format("~.10w: Min: ~p Max: ~p~n", [Alg, Min, Max]),
+
+    %% Verify that the basic statistics are ok
+    %% be gentle we don't want to see to many failing tests
+    abs(50.5 - AverN) < 0.5 orelse test_server:fail({average, Alg, AverN}),
+    abs(?LOOP div 100 - Min) < 1000 orelse test_server:fail({min, Alg, Min}),
+    abs(?LOOP div 100 - Max) < 1000 orelse test_server:fail({max, Alg, Max}),
+    ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+plugin(doc) ->   ["Test that the user can write algorithms"];
+plugin(suite) -> [];
+plugin(Config) when is_list(Config) ->
+    _ = lists:foldl(fun(_, S0) ->
+			    {V1, S1} = rand:uniform_s(10000, S0),
+			    true = is_integer(V1),
+			    {V2, S2} = rand:uniform_s(S1),
+			    true = is_float(V2),
+			    S2
+		    end, crypto_seed(), lists:seq(1, 200)),
+    ok.
+
+%% Test implementation
+crypto_seed() ->
+    {#{type=>crypto,
+       uniform=>fun crypto_uniform/1,
+       uniform_n=>fun crypto_uniform_n/2},
+     <<>>}.
+
+
+%% Be fair and create bignums i.e. 64bits otherwise use 58bits
+crypto_next(<<Num:64, Bin/binary>>) ->
+    {Num, Bin};
+crypto_next(_) ->
+    crypto_next(crypto:rand_bytes((64 div 8)*100)).
+
+crypto_uniform({Api, Data0}) ->
+    {Int, Data} = crypto_next(Data0),
+    {Int / (1 bsl 64), {Api, Data}}.
+
+crypto_uniform_n(N, {Api, Data0}) when N < (1 bsl 64) ->
+    {Int, Data} = crypto_next(Data0),
+    {(Int rem N)+1, {Api, Data}};
+crypto_uniform_n(N, State0) ->
+    {F,State} = crypto_uniform(State0),
+    {trunc(F * N) + 1, State}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Not a test but measures the time characteristics of the different algorithms
+measure(Suite) when is_atom(Suite) -> [];
+measure(_Config) ->
+    Algos = [crypto64|algs()],
+    io:format("RNG integer performance~n",[]),
+    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(10000, State) end) || Algo <- Algos],
+    io:format("RNG float performance~n",[]),
+    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(State) end) || Algo <- Algos],
+    ok.
+
+measure_1(Algo, Gen) ->
+    Parent = self(),
+    Seed = fun(crypto64) -> crypto_seed();
+	      (Alg) -> rand:seed_s(Alg)
+	   end,
+
+    Pid = spawn_link(fun() ->
+			     Fun = fun() -> measure_2(?LOOP, Seed(Algo), Gen) end,
+			     {Time, ok} = timer:tc(Fun),
+			     io:format("~.10w: ~pµs~n", [Algo, Time]),
+			     Parent ! {self(), ok},
+			     normal
+		     end),
+    receive
+	{Pid, Msg} -> Msg
+    end.
+
+measure_2(N, State0, Fun) when N > 0 ->
+    case Fun(State0) of
+	{Random, State}
+	  when is_integer(Random), Random >= 1, Random =< 100000 ->
+	    measure_2(N-1, State, Fun);
+	{Random, State} when is_float(Random), Random > 0, Random < 1 ->
+	    measure_2(N-1, State, Fun);
+	Res ->
+	    exit({error, Res, State0})
+    end;
+measure_2(0, _, _) -> ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Data
+reference_val(exs64) ->
     [319141588671983412,557783621674435131,195888530915544405,154938545395818485,
      255812719753660651,473447150887733994,192511984483695649,472293393595956765,
      61800926600707014,530543982124467401,306198791537178952,350759193701693920,
@@ -201,25 +425,9 @@ check_exs64_refval() ->
      367344209639370849,235706647656126362,464169066250319512,245164557936787691,
      171266500878962313,311182762441253442,120863342166989311,380818317377321391,
      491804995637816215,241767489252455126,34885506432035243,430130299561174389,
-     323322495667722704,396718912665507766,528559997233003471,550122714628498054].
+     323322495667722704,396718912665507766,528559997233003471,550122714628498054];
 
-exs1024(doc) ->
-    ["Check if exs1024 algorithm generates the proper sequence."];
-exs1024(suite) ->
-    [];
-exs1024(Config) when is_list(Config) ->
-    check_exs1024(),
-    ok.
-
-check_exs1024() ->
-    Refval = check_exs1024_refval(),
-    Testval = gen(exs1024),
-    case Refval =:= Testval of
-        true -> ok;
-        Else -> test_server:fail(Else)
-    end.
-
-check_exs1024_refval() ->
+reference_val(exs1024) ->
     [78898311962576191,508893083581941671,81235715133479719,206387766307580924,
      83152736994025975,117016170083477441,381970580112070378,206483451029404095,
      25668386032366202,567509860589288709,245141000491753950,62083111856913227,
@@ -244,25 +452,9 @@ check_exs1024_refval() ->
      330184431166934953,80861626618092773,280421723677071136,406422466901413603,
      277324645107298007,513036335817543337,225712380933704911,142995761359401518,
      402851616194125958,386840038092179546,264766167064381501,328569846192596006,
-     477365241285513929,424141000586568578,76848571952187927,112640496269301976].
+     477365241285513929,424141000586568578,76848571952187927,112640496269301976];
 
-exsplus(doc) ->
-    ["Check if exsplus algorithm generates the proper sequence."];
-exsplus(suite) ->
-    [];
-exsplus(Config) when is_list(Config) ->
-    check_exsplus(),
-    ok.
-
-check_exsplus() ->
-    Refval = check_exsplus_refval(),
-    Testval = gen(exsplus),
-    case Refval =:= Testval of
-        true -> ok;
-        Else -> test_server:fail(Else)
-    end.
-
-check_exsplus_refval() ->
+reference_val(exsplus) ->
     [168241236504998120,460893759984084943,20935930353018870,155480652086635734,
      165374847636402219,90012966164290618,329298691285404930,549254811780988386,
      251206333705794336,277138073113182588,385761792983983665,405059230429236393,
@@ -289,36 +481,3 @@ check_exsplus_refval() ->
      454600811477629241,550609293998899540,208283007443683687,279450053044644070,
      400241706033351589,211427847498741858,4157077915887693,483590908933799085].
 
-measure(Suite) when is_atom(Suite) -> [];
-measure(_Config) ->
-    Algos = [exs64, exsplus, exs1024],
-    io:format("RNG integer performance~n",[]),
-    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(10000, State) end) || Algo <- Algos],
-    io:format("RNG float performance~n",[]),
-    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(State) end) || Algo <- Algos],
-    ok.
-
-measure_1(Algo, Gen) ->
-    Parent = self(),
-    Pid = spawn_link(fun() ->
-			     Fun = fun() -> measure_2(?LOOP, rand:seed_s(Algo), Gen) end,
-			     {Time, ok} = timer:tc(Fun),
-			     io:format("~.10w: ~pµs~n", [Algo, Time]),
-			     Parent ! {self(), ok},
-			     normal
-		     end),
-    receive
-	{Pid, Msg} -> Msg
-    end.
-
-measure_2(N, State0, Fun) when N > 0 ->
-    case Fun(State0) of
-	{Random, State}
-	  when is_integer(Random), Random >= 1, Random =< 100000 ->
-	    measure_2(N-1, State, Fun);
-	{Random, State} when is_float(Random), Random > 0, Random < 1 ->
-	    measure_2(N-1, State, Fun);
-	Res ->
-	    exit({error, Res, State0})
-    end;
-measure_2(0, _, _) -> ok.
