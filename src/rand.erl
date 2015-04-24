@@ -24,7 +24,7 @@
 -module(rand).
 
 -export([seed_s/1, seed_s/2, seed/1, seed/2,
-	 export_seed/0, export_seed/1,
+	 export_seed/0, export_seed_s/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2]).
 
 -compile({inline, [exs64_next/1, exsplus_next/1,
@@ -44,8 +44,8 @@
 -type alg_seed() :: any().
 %% This is the algorithm handler function within this module
 -type alg_handler() :: #{type      => alg(),
-			 next      => fun(),
-			 max       => integer()}.
+			 uniform   => fun(),
+			 uniform_n => fun()}.
 
 %% Internal state
 -type state() :: {alg_handler(), alg_seed()}.
@@ -66,8 +66,8 @@ export_seed() ->
 	_ -> undefined
     end.
 
--spec export_seed(state()) -> {alg(), alg_seed()}.
-export_seed({#{type:=Alg}, Seed}) -> {Alg, Seed}.
+-spec export_seed_s(state()) -> {alg(), alg_seed()}.
+export_seed_s({#{type:=Alg}, Seed}) -> {Alg, Seed}.
 
 %% seed(Alg) seeds RNG with runtime dependent values
 %% and return the NEW state
@@ -84,8 +84,8 @@ seed(Alg) ->
 -spec seed_s(alg() | {alg(), alg_seed()}) -> state().
 seed_s(Alg) when is_atom(Alg) ->
     seed_s(Alg, {erlang:phash2([{node(),self()}]),
-		 erlang:monotonic_time(),
-		 erlang:time_offset()});
+		 erlang:system_time(),
+		 erlang:unique_integer()});
 seed_s({Alg0, Seed}) ->
     {Alg,_SeedFun} = mk_alg(Alg0),
     {Alg, Seed}.
@@ -323,5 +323,3 @@ exs1024_uniform(Max, {Alg, R}) when Max =< ?UINT64MASK ->
 exs1024_uniform(Max, State0) ->
     {F, State} = exs1024_uniform(State0),
     {trunc(F * Max) + 1, State}.
-
-
