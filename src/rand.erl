@@ -310,7 +310,8 @@ exs1024_next({[S0,S1|L3], RL}) ->
     {X, NS1} = exs1024_calc(S0, S1),
     {X, {[NS1|L3], [S0|RL]}};
 exs1024_next({[H], RL}) ->
-    exs1024_next({[H|lists:reverse(RL)], []}).
+    NL = [H|lists:reverse(RL)],
+    exs1024_next({NL, []}).
 
 exs1024_uniform({Alg, R0}) ->
     {V, R1} = exs1024_next(R0),
