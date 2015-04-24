@@ -292,13 +292,16 @@ check_exsplus_refval() ->
 measure(Suite) when is_atom(Suite) -> [];
 measure(_Config) ->
     Algos = [exs64, exsplus, exs1024],
-    _ = [measure_1(Algo) || Algo <- Algos],
+    io:format("RNG integer performance~n",[]),
+    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(10000, State) end) || Algo <- Algos],
+    io:format("RNG float performance~n",[]),
+    _ = [measure_1(Algo, fun(State) -> rand:uniform_s(State) end) || Algo <- Algos],
     ok.
 
-measure_1(Algo) ->
+measure_1(Algo, Gen) ->
     Parent = self(),
     Pid = spawn_link(fun() ->
-			     Fun = fun() -> measure_2(?LOOP, rand:seed_s(Algo)) end,
+			     Fun = fun() -> measure_2(?LOOP, rand:seed_s(Algo), Gen) end,
 			     {Time, ok} = timer:tc(Fun),
 			     io:format("~.10w: ~pµs~n", [Algo, Time]),
 			     Parent ! {self(), ok},
@@ -308,14 +311,14 @@ measure_1(Algo) ->
 	{Pid, Msg} -> Msg
     end.
 
-measure_2(N, State0) when N > 0 ->
-    case rand:uniform_s(10000, State0) of
+measure_2(N, State0, Fun) when N > 0 ->
+    case Fun(State0) of
 	{Random, State}
 	  when is_integer(Random), Random >= 1, Random =< 100000 ->
-	    measure_2(N-1, State);
+	    measure_2(N-1, State, Fun);
 	{Random, State} when is_float(Random), Random > 0, Random < 1 ->
-	    measure_2(N-1, State);
+	    measure_2(N-1, State, Fun);
 	Res ->
 	    exit({error, Res, State0})
     end;
-measure_2(0, _) -> ok.
+measure_2(0, _, _) -> ok.

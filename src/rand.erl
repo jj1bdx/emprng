@@ -18,7 +18,7 @@
 %%
 %% =====================================================================
 %% Multiple PRNG module for Erlang/OTP
-%% Copyright (c) 2010-2015 Kenji Rikitake, Kyoto University.
+%% Copyright (c) 2015 Kenji Rikitake, Kyoto University.
 %% =====================================================================
 
 -module(rand).
@@ -133,20 +133,17 @@ uniform(N) ->
 %% and a new state.
 
 -spec uniform_s(state()) -> {float(), NewS :: state()}.
-uniform_s({Alg = #{uniform:=Uniform}, AS0}) ->
-    {X, AS} = Uniform(AS0),
-    {X, {Alg, AS}}.
+uniform_s(State = {#{uniform:=Uniform}, _}) ->
+    Uniform(State).
 
 %% uniform_s/2: given an integer N >= 1 and a state, uniform_s/2
 %% uniform_s/2 returns a random integer X where 1 =< X =< N,
 %% and a new state.
 
--spec uniform_s(N :: pos_integer(), state()) ->
-		       {pos_integer(), NewS :: state()}.
-uniform_s(N, {Alg = #{uniform_n:=Uniform}, AS0})
-  when is_integer(N), N >= 1 ->
-    {X, AS} = Uniform(N, AS0),
-    {X, {Alg, AS}}.
+-spec uniform_s(N::pos_integer(), state()) -> {pos_integer(), NewS::state()}.
+uniform_s(N, State = {#{uniform_n:=Uniform}, _})
+  when is_integer(N), 0 < N ->
+    Uniform(N, State).
 
 %% =====================================================================
 %% Internal functions
@@ -211,13 +208,16 @@ exs64_next(R) ->
     R3 = R2 bxor (R2 bsr 27),
     {(R3 * 2685821657736338717) band ?UINT64MASK, R3}.
 
-exs64_uniform(R0) ->
+exs64_uniform({Alg, R0}) ->
     {V, R1} = exs64_next(R0),
-    {V / 18446744073709551616.0, R1}.
+    {V / 18446744073709551616, {Alg, R1}}.
 
-exs64_uniform(Max, R) ->
+exs64_uniform(Max, {Alg, R}) when Max =< ?UINT64MASK ->
     {V, R1} = exs64_next(R),
-    {(V rem Max) + 1, R1}.
+    {(V rem Max) + 1, {Alg, R1}};
+exs64_uniform(Max, State0) ->
+    {F, State} = exs64_uniform(State0),
+    {trunc(F * Max) + 1, State}.
 
 %% =====================================================================
 %% exsplus PRNG: Xorshift+128
@@ -243,16 +243,19 @@ exsplus_next([S1|S0]) ->
     %% Note: members s0 and s1 are swapped here
     S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
     S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
-    {(S0 + S12) band ?UINT64MASK,
-     [S0|S12]}.
+    {(S0 + S12) band ?UINT64MASK, [S0|S12]}.
 
-exsplus_uniform(R0) ->
+exsplus_uniform({Alg, R0}) ->
     {I, R1} = exsplus_next(R0),
-    {I / 18446744073709551616.0, R1}.
+    {I / 18446744073709551616, {Alg, R1}}.
 
-exsplus_uniform(Max, R) ->
+exsplus_uniform(Max, {Alg, R}) when Max =< ?UINT64MASK ->
     {V, R1} = exsplus_next(R),
-    {(V rem Max) + 1, R1}.
+    {(V rem Max) + 1, {Alg, R1}};
+exsplus_uniform(Max, State0) ->
+    {F, State} = exsplus_uniform(State0),
+    {trunc(F * Max) + 1, State}.
+
 
 %% =====================================================================
 %% exs1024 PRNG: Xorshift*1024
@@ -310,11 +313,15 @@ exs1024_next({[S0,S1|L3], RL}) ->
 exs1024_next({[H], RL}) ->
     exs1024_next({[H|lists:reverse(RL)], []}).
 
-exs1024_uniform(R0) ->
+exs1024_uniform({Alg, R0}) ->
     {V, R1} = exs1024_next(R0),
-    {V / 18446744073709551616.0, R1}.
+    {V / 18446744073709551616, {Alg, R1}}.
 
-exs1024_uniform(Max, R) ->
+exs1024_uniform(Max, {Alg, R}) when Max =< ?UINT64MASK ->
     {V, R1} = exs1024_next(R),
-    {(V rem Max) + 1, R1}.
+    {(V rem Max) + 1, {Alg, R1}};
+exs1024_uniform(Max, State0) ->
+    {F, State} = exs1024_uniform(State0),
+    {trunc(F * Max) + 1, State}.
+
 
