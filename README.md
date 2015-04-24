@@ -12,6 +12,7 @@
 ## Requirements
 
 * Erlang/OTP 18.0-rc1 and later
+* (Use tag `0.2.1` to retrieve the last code for 17.x)
 
 ## Goals
 
