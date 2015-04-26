@@ -30,7 +30,7 @@
 -compile({inline, [exs64_next/1, exsplus_next/1,
 		   exs1024_next/1, exs1024_calc/2]}).
 
--define(DEFAULT_ALG_HANDLER, exs64).
+-define(DEFAULT_ALG_HANDLER, exsplus).
 -define(SEED_DICT, rand_seed).
 
 %% =====================================================================
@@ -49,9 +49,7 @@
 
 %% Internal state
 -type state() :: {alg_handler(), alg_seed()}.
-
 -type alg() :: exs64 | exsplus | exs1024.
-
 -export_type([alg/0, alg_handler/0]).
 
 %% =====================================================================
@@ -112,7 +110,6 @@ seed_s(Alg0, S0 = {_, _, _}) ->
 %% updating the state in the process dictionary.
 
 -spec uniform() -> float().
-
 uniform() ->
     {X, Seed} = uniform_s(seed_get()),
     _ = seed_put(Seed),
@@ -149,7 +146,6 @@ uniform_s(N, State = {#{uniform_n:=Uniform}, _})
 %% Internal functions
 
 -spec seed_put(state()) -> undefined | state().
-
 seed_put(Seed) ->
     put(?SEED_DICT, Seed).
 
@@ -173,17 +169,17 @@ mk_alg(exs1024) ->
        uniform_n=>fun exs1024_uniform/2},
      fun exs1024_seed/1}.
 
-
 -define(UINT21MASK, 16#00000000001fffff).
 -define(UINT32MASK, 16#00000000ffffffff).
 -define(UINT33MASK, 16#00000001ffffffff).
 -define(UINT39MASK, 16#0000007fffffffff).
+-define(UINT58MASK, 16#03ffffffffffffff).
 -define(UINT64MASK, 16#ffffffffffffffff).
 
 -type uint64() :: 0..16#ffffffffffffffff.
 
 %% =====================================================================
-%% exs64 PRNG: Xorshift*64
+%% exs64 PRNG: Xorshift64*
 %% Algorithm by Sebastiano Vigna
 %% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
@@ -196,12 +192,8 @@ exs64_seed({A1, A2, A3}) ->
     {V3, _} = exs64_next(((A3 band ?UINT32MASK) * 4294967279 + 1)),
     ((V1 * V2 * V3) rem (?UINT64MASK - 1)) + 1.
 
-%% Advance xorshift64star state for one step.
-%% and generate 64bit unsigned integer from
-%% the xorshift64star internal state.
-
+%% Advance xorshift64* state for one step and generate 64bit unsigned integer
 -spec exs64_next(exs64_state()) -> {uint64(), exs64_state()}.
-
 exs64_next(R) ->
     R1 = R bxor (R bsr 12),
     R2 = R1 bxor ((R1 band ?UINT39MASK) bsl 25),
@@ -220,36 +212,36 @@ exs64_uniform(Max, State0) ->
     {trunc(F * Max) + 1, State}.
 
 %% =====================================================================
-%% exsplus PRNG: Xorshift+128
+%% exsplus PRNG: Xorshift116+
 %% Algorithm by Sebastiano Vigna
 %% Reference URL: http://xorshift.di.unimi.it/
+%% 58 bits fits into an immediate on 64bits erlang and is thus much faster.
+%% Modification of the original Xorshift128+ algorithm to 116
+%% by Sebastiano Vigna, a lot of thanks for his help and work.
 %% =====================================================================
 
 -type exsplus_state() :: [integer()|integer()].
 
 exsplus_seed({A1, A2, A3}) ->
-    {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINT64MASK)|
-			    (((A2 * 4294967231) + 1) band ?UINT64MASK)]),
-    {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINT64MASK)|
+    {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINT58MASK)|
+			    (((A2 * 4294967231) + 1) band ?UINT58MASK)]),
+    {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINT58MASK)|
 			    tl(R1)]),
     R2.
 
-%% Advance xorshift128plus state for one step.
-%% and generate 64bit unsigned integer from
-%% the xorshift128plus internal state.
-
--spec exsplus_next(exsplus_state()) -> {uint64(), exsplus_state()}.
+%% Advance xorshift116+ state for one step and generate 58bit unsigned integer
+-spec exsplus_next(exsplus_state()) -> {integer(), exsplus_state()}.
 exsplus_next([S1|S0]) ->
     %% Note: members s0 and s1 are swapped here
-    S11 = (S1 bxor (S1 bsl 23)) band ?UINT64MASK,
-    S12 = S11 bxor S0 bxor (S11 bsr 17) bxor (S0 bsr 26),
-    {(S0 + S12) band ?UINT64MASK, [S0|S12]}.
+    S11 = (S1 bxor (S1 bsl 24)) band ?UINT58MASK,
+    S12 = S11 bxor S0 bxor (S11 bsr 11) bxor (S0 bsr 41),
+    {(S0 + S12) band ?UINT58MASK, [S0|S12]}.
 
 exsplus_uniform({Alg, R0}) ->
     {I, R1} = exsplus_next(R0),
-    {I / 18446744073709551616, {Alg, R1}}.
+    {I / (?UINT58MASK+1), {Alg, R1}}.
 
-exsplus_uniform(Max, {Alg, R}) when Max =< ?UINT64MASK ->
+exsplus_uniform(Max, {Alg, R}) when Max =< ?UINT58MASK ->
     {V, R1} = exsplus_next(R),
     {(V rem Max) + 1, {Alg, R1}};
 exsplus_uniform(Max, State0) ->
@@ -258,7 +250,7 @@ exsplus_uniform(Max, State0) ->
 
 
 %% =====================================================================
-%% exs1024 PRNG: Xorshift*1024
+%% exs1024 PRNG: Xorshift1024*
 %% Algorithm by Sebastiano Vigna
 %% Reference URL: http://xorshift.di.unimi.it/
 %% =====================================================================
@@ -269,16 +261,14 @@ exs1024_seed({A1, A2, A3}) ->
     B1 = (((A1 band ?UINT21MASK) + 1) * 2097131) band ?UINT21MASK,
     B2 = (((A2 band ?UINT21MASK) + 1) * 2097133) band ?UINT21MASK,
     B3 = (((A3 band ?UINT21MASK) + 1) * 2097143) band ?UINT21MASK,
-    {exs1024_gen1024(
-		    (B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1), []}.
+    {exs1024_gen1024((B1 bsl 43) bor (B2 bsl 22) bor (B3 bsl 1) bor 1),
+     []}.
 
 %% Generate a list of 16 64-bit element list
-%% of the xorshift64star random sequence
+%% of the xorshift64* random sequence
 %% from a given 64-bit seed.
 %% Note: dependent on exs64_next/1
-
 -spec exs1024_gen1024(uint64()) -> list(uint64()).
-
 exs1024_gen1024(R) ->
     exs1024_gen1024(16, R, []).
 
@@ -288,10 +278,9 @@ exs1024_gen1024(N, R, L) ->
     {X, R2} = exs64_next(R),
     exs1024_gen1024(N - 1, R2, [X|L]).
 
-%% Calculation of xorshift1024star.
+%% Calculation of xorshift1024*.
 %% exs1024_calc(S0, S1) -> {X, NS1}.
 %% X: random number output
-
 -spec exs1024_calc(uint64(), uint64()) -> {uint64(), uint64()}.
 exs1024_calc(S0, S1) ->
     S11 = S1 bxor ((S1 band ?UINT33MASK) bsl 31),
@@ -300,12 +289,8 @@ exs1024_calc(S0, S1) ->
     NS1 = S01 bxor S12,
     {(NS1 * 1181783497276652981) band ?UINT64MASK, NS1}.
 
-%% Advance xorshift1024star state for one step.
-%% and generate 64bit unsigned integer from
-%% the xorshift1024star internal state.
-
+%% Advance xorshift1024* state for one step and generate 64bit unsigned integer
 -spec exs1024_next(exs1024_state()) -> {uint64(), exs1024_state()}.
-
 exs1024_next({[S0,S1|L3], RL}) ->
     {X, NS1} = exs1024_calc(S0, S1),
     {X, {[NS1|L3], [S0|RL]}};
