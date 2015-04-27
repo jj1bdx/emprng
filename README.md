@@ -28,15 +28,17 @@
 
 ## Available PRNGs
 
-* [exs64](https://github.com/jj1bdx/exs64/) (Xorshift\*64)
-* [exsplus](https://github.com/jj1bdx/exsplus/) (Xorshift+128)
-* [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift\*1024)
+* Modified [exsplus](https://github.com/jj1bdx/exsplus/) (Xorshift116+, default PRNG; the original exsplus is Xorshift128+, available since 0.4.0)
+* [exs64](https://github.com/jj1bdx/exs64/) (Xorshift64\*)
+* [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift1024\*)
 
 ## Acknowledgments
 
 Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers to
 the OTP random module, including the code review, various ideas,
-implementations, pieces of code for `random.erl`, and comments.
+implementations, pieces of code for `rand.erl`, and comments.
+
+Thanks to Sebastiano Vigna for providing Xorshift+116 alrogithm.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
 allowing redistribution of sfmt-erlang and tinymt-erlang under
