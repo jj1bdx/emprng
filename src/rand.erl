@@ -44,6 +44,7 @@
 -type alg_seed() :: any().
 %% This is the algorithm handler function within this module
 -type alg_handler() :: #{type      => alg(),
+			 max       => integer(),
 			 uniform   => fun(),
 			 uniform_n => fun()}.
 
@@ -145,6 +146,16 @@ uniform_s(N, State = {#{uniform_n:=Uniform}, _})
 %% =====================================================================
 %% Internal functions
 
+-define(UINT21MASK, 16#00000000001fffff).
+-define(UINT32MASK, 16#00000000ffffffff).
+-define(UINT33MASK, 16#00000001ffffffff).
+-define(UINT39MASK, 16#0000007fffffffff).
+-define(UINT58MASK, 16#03ffffffffffffff).
+-define(UINT64MASK, 16#ffffffffffffffff).
+
+-type uint64() :: 0..16#ffffffffffffffff.
+
+
 -spec seed_put(state()) -> undefined | state().
 seed_put(Seed) ->
     put(?SEED_DICT, Seed).
@@ -157,26 +168,17 @@ seed_get() ->
 
 %% Setup alg record
 mk_alg(exs64) ->
-    {#{type=>exs64, uniform=>fun exs64_uniform/1,
-       uniform_n=>fun exs64_uniform/2},
+    {#{type=>exs64, max=>?UINT64MASK,
+       uniform=>fun exs64_uniform/1, uniform_n=>fun exs64_uniform/2},
      fun exs64_seed/1};
 mk_alg(exsplus) ->
-    {#{type=>exsplus, uniform=>fun exsplus_uniform/1,
-       uniform_n=>fun exsplus_uniform/2},
+    {#{type=>exsplus, max=>?UINT58MASK,
+       uniform=>fun exsplus_uniform/1, uniform_n=>fun exsplus_uniform/2},
      fun exsplus_seed/1};
 mk_alg(exs1024) ->
-    {#{type=>exs1024, uniform=>fun exs1024_uniform/1,
-       uniform_n=>fun exs1024_uniform/2},
+    {#{type=>exs1024, max=>?UINT64MASK,
+       uniform=>fun exs1024_uniform/1, uniform_n=>fun exs1024_uniform/2},
      fun exs1024_seed/1}.
-
--define(UINT21MASK, 16#00000000001fffff).
--define(UINT32MASK, 16#00000000ffffffff).
--define(UINT33MASK, 16#00000001ffffffff).
--define(UINT39MASK, 16#0000007fffffffff).
--define(UINT58MASK, 16#03ffffffffffffff).
--define(UINT64MASK, 16#ffffffffffffffff).
-
--type uint64() :: 0..16#ffffffffffffffff.
 
 %% =====================================================================
 %% exs64 PRNG: Xorshift64*
