@@ -38,7 +38,7 @@ Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers to
 the OTP random module, including the code review, various ideas,
 implementations, pieces of code for `rand.erl`, and comments.
 
-Thanks to Sebastiano Vigna for providing Xorshift+116 alrogithm.
+Thanks to Sebastiano Vigna for providing xorshift116+ alrogithm.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
 allowing redistribution of sfmt-erlang and tinymt-erlang under
