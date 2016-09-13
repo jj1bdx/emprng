@@ -1,66 +1,51 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2000-2011. All Rights Reserved.
+%% Copyright Ericsson AB 2000-2016. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 
 -module(rand_SUITE).
--export([all/0, suite/0,groups/0,
-	 init_per_suite/1, end_per_suite/1,
-	 init_per_group/2,end_per_group/2,
-	 init_per_testcase/2, end_per_testcase/2
-	]).
+-export([all/0, suite/0,groups/0]).
 
 -export([interval_int/1, interval_float/1, seed/1,
-         api_eq/1, reference/1, basic_stats/1,
-	 plugin/1, measure/1
-	]).
+         api_eq/1, reference/1,
+	 basic_stats_uniform_1/1, basic_stats_uniform_2/1,
+	 basic_stats_normal/1,
+	 plugin/1, measure/1]).
 
 -export([test/0, gen/1]).
 
--include_lib("test_server/include/test_server.hrl").
+-include_lib("common_test/include/ct.hrl").
 
-% Default timetrap timeout (set in init_per_testcase).
--define(default_timeout, ?t:minutes(1)).
 -define(LOOP, 1000000).
 
-init_per_testcase(_Case, Config) ->
-    Dog = ?t:timetrap(?default_timeout),
-    [{watchdog, Dog} | Config].
-end_per_testcase(_Case, Config) ->
-    Dog = ?config(watchdog, Config),
-    test_server:timetrap_cancel(Dog),
-    ok.
-
-suite() -> [{ct_hooks,[ts_install_cth]}].
+suite() ->
+    [{ct_hooks,[ts_install_cth]},
+     {timetrap,{minutes,3}}].
 
 all() ->
     [seed, interval_int, interval_float,
      api_eq,
      reference,
-     basic_stats,
-     plugin, measure
-    ].
+     {group, basic_stats},
+     plugin, measure].
 
-groups() -> [].
-
-init_per_suite(Config) ->  Config.
-end_per_suite(_Config) -> ok.
-
-init_per_group(_GroupName, Config) -> Config.
-end_per_group(_GroupName, Config) ->  Config.
+groups() ->
+    [{basic_stats, [parallel],
+      [basic_stats_uniform_1, basic_stats_uniform_2, basic_stats_normal]}].
 
 %% A simple helper to test without test_server during dev
 test() ->
@@ -80,16 +65,13 @@ algs() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-seed(doc) ->
-    ["Test that seed and seed_s and export_seed/0 is working."];
-seed(suite) ->
-    [];
+%% Test that seed and seed_s and export_seed/0 is working.
 seed(Config) when is_list(Config) ->
     Algs = algs(),
     Test = fun(Alg) ->
 		   try seed_1(Alg)
 		   catch _:Reason ->
-			   test_server:fail({Alg, Reason, erlang:get_stacktrace()})
+			   ct:fail({Alg, Reason, erlang:get_stacktrace()})
 		   end
 	   end,
     [Test(Alg) || Alg <- Algs],
@@ -121,6 +103,9 @@ seed_1(Alg) ->
     false = (S1 =:= rand:seed_s(Alg)),
     %% Negative integers works
     _ = rand:seed_s(Alg, {-1,-1,-1}),
+    %% Check that export_seed/1 returns 'undefined' if there is no seed
+    erase(rand_seed),
+    undefined = rand:export_seed(),
 
     %% Other term do not work
     {'EXIT', _} = (catch rand:seed_s(foobar, os:timestamp())),
@@ -131,10 +116,7 @@ seed_1(Alg) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-api_eq(doc) ->
-    ["Check that both api's are consistent with each other."];
-api_eq(suite) ->
-    [];
+%% Check that both APIs are consistent with each other.
 api_eq(_Config) ->
     Algs = algs(),
     Small = fun(Alg) ->
@@ -180,10 +162,7 @@ api_eq_1(S00) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-interval_int(doc) ->
-    ["Check that uniform/1 returns values within the proper interval."];
-interval_int(suite) ->
-    [];
+%% Check that uniform/1 returns values within the proper interval.
 interval_int(Config) when is_list(Config) ->
     Algs = algs(),
     Small = fun(Alg) ->
@@ -217,10 +196,7 @@ interval_int_1(N, Top, Max) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-interval_float(doc) ->
-    ["Check that uniform/0 returns values within the proper interval."];
-interval_float(suite) ->
-    [];
+%% Check that uniform/0 returns values within the proper interval.
 interval_float(Config) when is_list(Config) ->
     Algs = algs(),
     Test = fun(Alg) ->
@@ -244,8 +220,7 @@ interval_float_1(N) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-reference(doc) -> ["Check if exs64 algorithm generates the proper sequence."];
-reference(suite) -> [];
+%% Check if exs64 algorithm generates the proper sequence.
 reference(Config) when is_list(Config) ->
     [reference_1(Alg) || Alg <- algs()],
     ok.
@@ -259,7 +234,6 @@ reference_1(Alg) ->
 	    io:format("Failed: ~p~n",[Alg]),
 	    io:format("Length ~p ~p~n",[length(Refval), length(Testval)]),
 	    io:format("Head ~p ~p~n",[hd(Refval), hd(Testval)]),
-	    %% test_server:fail({Alg, Refval -- Testval}),
 	    ok
     end.
 
@@ -290,14 +264,22 @@ gen(_, _, Acc) -> lists:reverse(Acc).
 %% The algorithms must have good properties to begin with
 %%
 
-basic_stats(doc) -> ["Check that the algorithms generate sound values."];
-basic_stats(suite) -> [];
-basic_stats(Config) when is_list(Config) ->
-    io:format("Testing uniform~n",[]),
+%% Check that the algorithms generate sound values.
+
+basic_stats_uniform_1(Config) when is_list(Config) ->
+    ct:timetrap({minutes,6}), %% valgrind needs a lot of time
     [basic_uniform_1(?LOOP, rand:seed_s(Alg), 0.0, array:new([{default, 0}]))
      || Alg <- algs()],
+    ok.
+
+basic_stats_uniform_2(Config) when is_list(Config) ->
+    ct:timetrap({minutes,6}), %% valgrind needs a lot of time
     [basic_uniform_2(?LOOP, rand:seed_s(Alg), 0, array:new([{default, 0}]))
      || Alg <- algs()],
+    ok.
+
+basic_stats_normal(Config) when is_list(Config) ->
+    ct:timetrap({minutes,6}), %% valgrind needs a lot of time
     io:format("Testing normal~n",[]),
     [basic_normal_1(?LOOP, rand:seed_s(Alg), 0, 0) || Alg <- algs()],
     ok.
@@ -317,9 +299,9 @@ basic_uniform_1(0, {#{type:=Alg}, _}, Sum, A) ->
 
     %% Verify that the basic statistics are ok
     %% be gentle we don't want to see to many failing tests
-    abs(0.5 - AverN) < 0.005 orelse test_server:fail({average, Alg, AverN}),
-    abs(?LOOP div 100 - Min) < 1000 orelse test_server:fail({min, Alg, Min}),
-    abs(?LOOP div 100 - Max) < 1000 orelse test_server:fail({max, Alg, Max}),
+    abs(0.5 - AverN) < 0.005 orelse ct:fail({average, Alg, AverN}),
+    abs(?LOOP div 100 - Min) < 1000 orelse ct:fail({min, Alg, Min}),
+    abs(?LOOP div 100 - Max) < 1000 orelse ct:fail({max, Alg, Max}),
     ok.
 
 basic_uniform_2(N, S0, Sum, A0) when N > 0 ->
@@ -336,9 +318,9 @@ basic_uniform_2(0, {#{type:=Alg}, _}, Sum, A) ->
 
     %% Verify that the basic statistics are ok
     %% be gentle we don't want to see to many failing tests
-    abs(50.5 - AverN) < 0.5 orelse test_server:fail({average, Alg, AverN}),
-    abs(?LOOP div 100 - Min) < 1000 orelse test_server:fail({min, Alg, Min}),
-    abs(?LOOP div 100 - Max) < 1000 orelse test_server:fail({max, Alg, Max}),
+    abs(50.5 - AverN) < 0.5 orelse ct:fail({average, Alg, AverN}),
+    abs(?LOOP div 100 - Min) < 1000 orelse ct:fail({min, Alg, Min}),
+    abs(?LOOP div 100 - Max) < 1000 orelse ct:fail({max, Alg, Max}),
     ok.
 
 basic_normal_1(N, S0, Sum, Sq) when N > 0 ->
@@ -350,14 +332,13 @@ basic_normal_1(0, {#{type:=Alg}, _}, Sum, SumSq) ->
     io:format("~.10w: Average: ~7.4f StdDev ~6.4f~n", [Alg, Mean, StdDev]),
     %% Verify that the basic statistics are ok
     %% be gentle we don't want to see to many failing tests
-    abs(Mean) < 0.005 orelse test_server:fail({average, Alg, Mean}),
-    abs(StdDev - 1.0) < 0.005 orelse test_server:fail({stddev, Alg, StdDev}),
+    abs(Mean) < 0.005 orelse ct:fail({average, Alg, Mean}),
+    abs(StdDev - 1.0) < 0.005 orelse ct:fail({stddev, Alg, StdDev}),
     ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-plugin(doc) ->   ["Test that the user can write algorithms"];
-plugin(suite) -> [];
+%% Test that the user can write algorithms.
 plugin(Config) when is_list(Config) ->
     _ = lists:foldl(fun(_, S0) ->
 			    {V1, S1} = rand:uniform_s(10000, S0),
@@ -381,7 +362,7 @@ crypto_seed() ->
 crypto_next(<<Num:64, Bin/binary>>) ->
     {Num, Bin};
 crypto_next(_) ->
-    crypto_next(crypto:rand_bytes((64 div 8)*100)).
+    crypto_next(crypto:strong_rand_bytes((64 div 8)*100)).
 
 crypto_uniform({Api, Data0}) ->
     {Int, Data} = crypto_next(Data0),
@@ -399,18 +380,23 @@ crypto_uniform_n(N, State0) ->
 %% Not a test but measures the time characteristics of the different algorithms
 measure(Suite) when is_atom(Suite) -> [];
 measure(_Config) ->
+    ct:timetrap({minutes,6}), %% valgrind needs a lot of time
     Algos = [crypto64|algs()],
     io:format("RNG uniform integer performance~n",[]),
+    _ = measure_1(random, fun(State) -> {int, random:uniform_s(10000, State)} end),
     _ = [measure_1(Algo, fun(State) -> {int, rand:uniform_s(10000, State)} end) || Algo <- Algos],
     io:format("RNG uniform float performance~n",[]),
+    _ = measure_1(random, fun(State) -> {uniform, random:uniform_s(State)} end),
     _ = [measure_1(Algo, fun(State) -> {uniform, rand:uniform_s(State)} end) || Algo <- Algos],
     io:format("RNG normal float performance~n",[]),
+    io:format("~.10w: not implemented (too few bits)~n", [random]),
     _ = [measure_1(Algo, fun(State) -> {normal, rand:normal_s(State)} end) || Algo <- Algos],
     ok.
 
 measure_1(Algo, Gen) ->
     Parent = self(),
     Seed = fun(crypto64) -> crypto_seed();
+	      (random) -> random:seed(os:timestamp()), get(random_seed);
 	      (Alg) -> rand:seed_s(Alg)
 	   end,
 

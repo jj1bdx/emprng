@@ -1,18 +1,19 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2015. All Rights Reserved.
+%% Copyright Ericsson AB 2015-2016. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -43,11 +44,11 @@
 %% This depends on the algorithm handler function
 -type alg_seed() :: exs64_state() | exsplus_state() | exs1024_state().
 %% This is the algorithm handler function within this module
--type alg_handler() :: #{type      => alg(),
-			 max       => integer(),
-			 next      => fun(),
-			 uniform   => fun(),
-			 uniform_n => fun()}.
+-type alg_handler() :: #{type      := alg(),
+			 max       := integer(),
+			 next      := fun(),
+			 uniform   := fun(),
+			 uniform_n := fun()}.
 
 %% Internal state
 -opaque state() :: {alg_handler(), alg_seed()}.
@@ -62,7 +63,7 @@
 %% Return algorithm and seed so that RNG state can be recreated with seed/1
 -spec export_seed() -> undefined | export_state().
 export_seed() ->
-    case seed_get() of
+    case get(?SEED_DICT) of
 	{#{type:=Alg}, Seed} -> {Alg, Seed};
 	_ -> undefined
     end.
@@ -112,7 +113,7 @@ seed_s(Alg0, S0 = {_, _, _}) ->
 %% uniform/0: returns a random float X where 0.0 < X < 1.0,
 %% updating the state in the process dictionary.
 
--spec uniform() -> float().
+-spec uniform() -> X::float().
 uniform() ->
     {X, Seed} = uniform_s(seed_get()),
     _ = seed_put(Seed),
@@ -122,7 +123,7 @@ uniform() ->
 %% uniform/1 returns a random integer X where 1 =< X =< N,
 %% updating the state in the process dictionary.
 
--spec uniform(N :: pos_integer()) -> pos_integer().
+-spec uniform(N :: pos_integer()) -> X::pos_integer().
 uniform(N) ->
     {X, Seed} = uniform_s(N, seed_get()),
     _ = seed_put(Seed),
@@ -132,7 +133,7 @@ uniform(N) ->
 %% returns a random float X where 0.0 < X < 1.0,
 %% and a new state.
 
--spec uniform_s(state()) -> {float(), NewS :: state()}.
+-spec uniform_s(state()) -> {X::float(), NewS :: state()}.
 uniform_s(State = {#{uniform:=Uniform}, _}) ->
     Uniform(State).
 
@@ -140,7 +141,7 @@ uniform_s(State = {#{uniform:=Uniform}, _}) ->
 %% uniform_s/2 returns a random integer X where 1 =< X =< N,
 %% and a new state.
 
--spec uniform_s(N::pos_integer(), state()) -> {pos_integer(), NewS::state()}.
+-spec uniform_s(N::pos_integer(), state()) -> {X::pos_integer(), NewS::state()}.
 uniform_s(N, State = {#{uniform_n:=Uniform, max:=Max}, _})
   when 0 < N, N =< Max ->
     Uniform(N, State);
@@ -255,12 +256,16 @@ exs64_uniform(Max, {Alg, R}) ->
 %% =====================================================================
 -type exsplus_state() :: nonempty_improper_list(uint58(), uint58()).
 
+-dialyzer({no_improper_lists, exsplus_seed/1}).
+
 exsplus_seed({A1, A2, A3}) ->
     {_, R1} = exsplus_next([(((A1 * 4294967197) + 1) band ?UINT58MASK)|
 			    (((A2 * 4294967231) + 1) band ?UINT58MASK)]),
     {_, R2} = exsplus_next([(((A3 * 4294967279) + 1) band ?UINT58MASK)|
 			    tl(R1)]),
     R2.
+
+-dialyzer({no_improper_lists, exsplus_next/1}).
 
 %% Advance xorshift116+ state for one step and generate 58bit unsigned integer
 -spec exsplus_next(exsplus_state()) -> {uint58(), exsplus_state()}.
