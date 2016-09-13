@@ -1,18 +1,24 @@
-# emprng: an Erlang/OTP Multiple PRNG suite
+# emprng: an Erlang/OTP Multiple PRNG suite aka rand module
 
-## Modules
+## Modules under `src/`
 
-* `rand.erl`: prototype OTP `random`-compatible module
+* `rand.erl`: OTP `random`-compatible module (`lib/stdlib/src/rand.erl`)
+
+## Modules under `test/`
+
+* `rand_SUITE.erl`: OTP `rand` test suite (`lib/stdlib/test/rand_SUITE.erl`)
+* `ts_install_cth.erl`: OTP Common Test suite file for standalone testing (`lib/common_test/test_server/ts_install_cth.erl`)
 
 ## License
 
 * See individual files for the license details
-* `rand.erl` is licensed under [Erlang Public License](http://www.erlang.org/EPLICENSE)
+* `rand.erl` is licensed under [Apache Public License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
 ## Requirements
 
-* Erlang/OTP 18.0-rc1 and later
-* (Use tag `0.2.1` to retrieve the last code for 17.x)
+* Erlang/OTP 19 and later
+* (Use tag `0.2.1` to retrieve the last code for OTP 17.x)
+* (Use tag `0.4.0` to retrieve the last code for OTP 18.x)
 
 ## Goals
 
@@ -28,7 +34,7 @@
 
 ## Available PRNGs
 
-* Modified [exsplus](https://github.com/jj1bdx/exsplus/) (Xorshift116+, default PRNG; the original exsplus is Xorshift128+, available since 0.4.0)
+* [exsplus116](https://github.com/jj1bdx/exsplus116/) (Xorshift116+, default PRNG; the original exsplus is Xorshift128+, available since 0.4.0)
 * [exs64](https://github.com/jj1bdx/exs64/) (Xorshift64\*)
 * [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift1024\*)
 
