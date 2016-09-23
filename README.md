@@ -14,11 +14,17 @@
 * See individual files for the license details
 * `rand.erl` is licensed under [Apache Public License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
+## Version
+
+* 0.5.1
+* See the Git tag for the details
+
 ## Requirements
 
-* Erlang/OTP 19 and later
+* Erlang/OTP 19.1 and later
 * (Use tag `0.2.1` to retrieve the last code for OTP 17.x)
 * (Use tag `0.4.0` to retrieve the last code for OTP 18.x)
+* (Use tag `0.5.0` to retrieve the last code for OTP 19.0.x)
 
 ## Goals
 
