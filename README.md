@@ -16,7 +16,7 @@
 
 ## Version
 
-* 0.5.1
+* 0.5.2
 * See the Git tag for the details
 
 ## Requirements
@@ -26,21 +26,25 @@
 * (Use tag `0.4.0` to retrieve the last code for OTP 18.x)
 * (Use tag `0.5.0` to retrieve the last code for OTP 19.0.x)
 
-## Goals
+## Current goals
+
+* Jump functions (still in the experimental phase, need testing)
+
+## Completed goals
 
 * Provide a substitute of Erlang/OTP `random` module
-* Maintain full backward compatibility
-* Extendable (= accepting arbitrary algorithms)
-* Written in pure Erlang
+* Maintain full backward compatibility (seeding is semantically streamlined than `random` module)
+* Extendable (accepting arbitrary algorithms)
+* Write in pure Erlang
 * Comply with the coding convention of Erlang/OTP `stdlib` modules
 
 ## Non-goals
 
-* NIFs * maybe a future goal, already capable to handle arbitrary functions/modules
+* NIFs (maybe a future goal, rand.erl is already capable to handle arbitrary functions/modules)
 
 ## Available PRNGs
 
-* [exsplus116](https://github.com/jj1bdx/exsplus116/) (Xorshift116+, default PRNG; the original exsplus is Xorshift128+, available since 0.4.0)
+* [exsplus116](https://github.com/jj1bdx/exsplus116/) (Xorshift116+, default PRNG) (the original exsplus was Xorshift128+) (exsplus116 is available since 0.4.0)
 * [exs64](https://github.com/jj1bdx/exs64/) (Xorshift64\*)
 * [exs1024](https://github.com/jj1bdx/exs1024/) (Xorshift1024\*)
 
@@ -56,3 +60,4 @@ Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
 allowing redistribution of sfmt-erlang and tinymt-erlang under
 Erlang Public License.
 
+Thanks to Erlang Solutions for giving me the talk about this repository at Erlang Factory SF Bay Area 2015 and Erlang User Conference 2016.
