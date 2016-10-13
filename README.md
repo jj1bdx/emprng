@@ -16,7 +16,7 @@
 
 ## Version
 
-* 0.5.2
+* 0.6.0
 * See the Git tag for the details
 
 ## Requirements
@@ -28,7 +28,7 @@
 
 ## Current goals
 
-* Jump functions (still in the experimental phase, need testing)
+* Jump functions (preliminary test added, more testing needed)
 
 ## Completed goals
 
