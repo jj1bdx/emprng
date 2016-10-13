@@ -454,6 +454,11 @@ gen_jump(Algo) ->
 		   rand:seed_s({exsplus, [12345678|12345678]});
 	       exs1024 -> %% Printed with orig 'C' code and this seed
 		   rand:seed_s({exs1024, {lists:duplicate(16, 12345678), []}});
+	       exs64 -> %% Test exception of not_implemented notice
+	       try rand:jump(rand:seed_s(exs64))
+	       catch
+	            error:not_implemented -> not_implemented
+	       end;
 	       _ -> % unimplemented
 		   not_implemented
 	   end,
