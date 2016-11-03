@@ -15,8 +15,8 @@ xsltproc --noout --stringparam outdir . \
     --stringparam logo erlang-logo.png \
     --stringparam pdfname pdfname \
     --stringparam gendate "${DATE}" \
-    --stringparam appname Rand \
-    --stringparam appver 0.1 \
+    --stringparam appname emprng \
+    --stringparam appver 0.6.0 \
     -path ${ERLDOCGENLIB}/priv/dtd \
     -path ${ERLDOCGENLIB}/priv/dtd_html_entities \
     ${ERLDOCGENLIB}/priv/xsl/db_html.xsl \
