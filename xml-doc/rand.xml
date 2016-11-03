@@ -156,6 +156,36 @@ S0 = rand:seed_s(exsplus),
     </func>
 
     <func>
+      <name name="jump" arity="1"/>
+      <fsummary>Return the seed after performing jump calculation.</fsummary>
+      <desc><marker id="jump-1" />
+        <p>Returns the state after performing jump calculation,
+          which is equivalent to perform a large number of calls
+          of calculating new states. This can be used for generate
+          non-overlapping sequences for parallel computations.</p>
+        <p>The returned state for each algorithm is:
+          <taglist>
+            <tag><c>exsplus</c></tag>
+              <item>
+              <p>equivalent to 2^52 calls</p>
+              </item>
+            <tag><c>exs64</c></tag>
+              <item>
+              <p>not available</p>
+              </item>
+            <tag><c>exs1024</c></tag>
+              <item>
+              <p>equivalent to 2^512 calls</p>
+              </item>
+          </taglist>
+        </p>
+        <p>This function calls <c>erlang:error(not_implemented)</c>
+           when the jump function is not implemented for
+           the algorithm specified in the state.</p>
+      </desc>
+    </func>
+
+    <func>
       <name name="normal" arity="0"/>
       <fsummary>Return a standard normal distributed random float.</fsummary>
       <desc>
