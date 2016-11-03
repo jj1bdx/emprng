@@ -8,6 +8,10 @@
 
     ./docgen.sh
 
+## How to review
+
+* open `rand.html` (Note: prebuilt version is commited in the repository)
+
 ## Dependencies
 
 * `src/specs_rand.erl` is built from `src/rand.erl`
