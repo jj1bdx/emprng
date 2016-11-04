@@ -1,13 +1,18 @@
 # emprng: an Erlang/OTP Multiple PRNG suite aka rand module
 
-## Modules under `src/`
+## Target files
+
+### Under `src/`
 
 * `rand.erl`: OTP `random`-compatible module (`lib/stdlib/src/rand.erl`)
 
-## Modules under `test/`
+### Under `test/`
 
 * `rand_SUITE.erl`: OTP `rand` test suite (`lib/stdlib/test/rand_SUITE.erl`)
-* `ts_install_cth.erl`: OTP Common Test suite file for standalone testing (`lib/common_test/test_server/ts_install_cth.erl`)
+
+### Under `xml-doc/`
+
+* `rand.xml`: OTP `rand` manual (`lib/stdlib/doc/src/rand.xml`)
 
 ## License
 
