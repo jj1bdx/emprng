@@ -1,9 +1,9 @@
 #!/bin/sh
-ERLDOCGENLIB=./erl_docgen
+ERLDOCGENLIB=`escript ./erl_docgen_lib.escript`
 DATE=`date +"%B %e, %Y"`
 #
 # generate specs from the Erlang source
-escript ${ERLDOCGENLIB}/priv/bin/specs_gen.escript ../src/rand.erl
+escript ./specs_gen.escript ../src/rand.erl
 #
 xsltproc --noout --stringparam outdir . \
     --stringparam docgen ${ERLDOCGENLIB} \
