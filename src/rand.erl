@@ -19,7 +19,7 @@
 %%
 %% =====================================================================
 %% Multiple PRNG module for Erlang/OTP
-%% Copyright (c) 2015 Kenji Rikitake
+%% Copyright (c) 2015-2016 Kenji Rikitake
 %% =====================================================================
 
 -module(rand).
