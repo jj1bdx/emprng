@@ -302,6 +302,8 @@ exsplus_uniform(Max, {Alg, R}) ->
     {V, R1} = exsplus_next(R),
     {(V rem Max) + 1, {Alg, R1}}.
 
+%% This is the jump function for the exsplus generator, equivalent
+%% to 2^64 calls to next/1; it can be used to generate 2^52
 %% non-overlapping subsequences for parallel computations.
 %% Note: the jump function takes 116 times of the execution time of
 %% next/1.
@@ -392,6 +394,12 @@ exs1024_uniform({Alg, R0}) ->
 exs1024_uniform(Max, {Alg, R}) ->
     {V, R1} = exs1024_next(R),
     {(V rem Max) + 1, {Alg, R1}}.
+
+%% This is the jump function for the exs1024 generator, equivalent
+%% to 2^512 calls to next(); it can be used to generate 2^512
+%% non-overlapping subsequences for parallel computations.
+%% Note: the jump function takes ~2000 times of the execution time of
+%% next/1.
 
 %% Jump constant here split into 58 bits for speed
 -define(JUMPCONSTHEAD, 16#00242f96eca9c41d).
