@@ -50,7 +50,7 @@
       <tag><c>exsplus</c></tag>
       <item>
         <p>Xorshift116+, 58 bits precision and period of 2^116-1</p>
-        <p>Jump function: equivalent to 2^52 calls</p>
+        <p>Jump function: equivalent to 2^64 calls</p>
       </item>
       <tag><c>exs64</c></tag>
       <item>
