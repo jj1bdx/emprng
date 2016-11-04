@@ -18,5 +18,6 @@
 
 ## Notes
 
-* `erl_docgen/` contents are copied from Erlang/OTP master as of 3-NOV-2016
+* `docgen.sh` will use the default Erlang library's `erl_docgen` module (See `./erl_docgen_lib.escript`)
+* Some contents are copied from Erlang/OTP master `erl_docgen` module as of 3-NOV-2016
 * See [erl\_docgen User's Guide](http://erlang.org/doc/apps/erl_docgen/users_guide.html) for editing and writing xml
