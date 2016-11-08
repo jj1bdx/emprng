@@ -27,7 +27,7 @@
 -export([seed_s/1, seed_s/2, seed/1, seed/2,
 	 export_seed/0, export_seed_s/1,
          uniform/0, uniform/1, uniform_s/1, uniform_s/2,
-         jump/1,
+         jump/0, jump/1,
 	 normal/0, normal_s/1
 	]).
 
@@ -162,6 +162,16 @@ uniform_s(N, State0 = {#{uniform:=Uniform}, _})
 -spec jump(state()) -> {NewS :: state()}.
 jump(State = {#{jump:=Jump}, _}) ->
     Jump(State).
+
+%% jump/0: read the internal state and
+%% apply the jump function for the state as in jump/1
+%% and write back the new value to the internal state,
+%% then returns the new value.
+
+-spec jump() -> {NewS :: state()}.
+
+jump() ->
+	seed(export_seed_s(jump(seed(export_seed())))).
 
 %% normal/0: returns a random float with standard normal distribution
 %% updating the state in the process dictionary.
