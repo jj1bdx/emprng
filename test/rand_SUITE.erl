@@ -222,7 +222,7 @@ interval_float_1(N) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Check if exs64 algorithm generates the proper sequence.
+%% Check if each algorithm generates the proper sequence.
 reference(Config) when is_list(Config) ->
     [reference_1(Alg) || Alg <- algs()],
     ok.
@@ -236,7 +236,7 @@ reference_1(Alg) ->
 	    io:format("Failed: ~p~n",[Alg]),
 	    io:format("Length ~p ~p~n",[length(Refval), length(Testval)]),
 	    io:format("Head ~p ~p~n",[hd(Refval), hd(Testval)]),
-	    ok
+	    exit(wrong_value)
     end.
 
 gen(Algo) ->
@@ -431,7 +431,7 @@ measure_2(0, _, _) -> ok.
 
 -define(LOOP_JUMP, (?LOOP div 1000)).
 
-%% Check if exs64 algorithm generates the proper jump sequence.
+%% Check if each algorithm generates the proper jump sequence.
 reference_jump(Config) when is_list(Config) ->
     [reference_jump_1(Alg) || Alg <- algs()],
     ok.
@@ -445,7 +445,7 @@ reference_jump_1(Alg) ->
 	    io:format("Failed: ~p~n",[Alg]),
 	    io:format("Length ~p ~p~n",[length(Refval), length(Testval)]),
 	    io:format("Head ~p ~p~n",[hd(Refval), hd(Testval)]),
-	    ok
+	    exit(wrong_value)
     end.
 
 gen_jump(Algo) ->
