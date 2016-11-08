@@ -167,7 +167,7 @@ S0 = rand:seed_s(exsplus),
         <p>Returns the state after performing jump calculation,
           which is equivalent to perform a large number of calls
           of calculating new states. </p>
-        <p>This function returns <c>not_implemented</c> error
+      <p>This function generates a <c>not_implemented</c> error exception
            when the jump function is not implemented for
            the algorithm specified in the state.</p>
       </desc>
