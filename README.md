@@ -21,7 +21,7 @@
 
 ## Version
 
-* 0.7.3
+* 0.8.0
 * See the Git tag for the details
 
 ## Requirements
@@ -33,7 +33,7 @@
 
 ## Current goals
 
-* Jump functions (preliminary test added, more testing needed)
+* Bugfix
 
 ## Completed goals
 
@@ -42,6 +42,7 @@
 * Extendable (accepting arbitrary algorithms)
 * Write in pure Erlang
 * Comply with the coding convention of Erlang/OTP `stdlib` modules
+* Jump functions
 
 ## Non-goals
 
