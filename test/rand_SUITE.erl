@@ -58,6 +58,9 @@ groups() ->
 
 group(basic_stats) ->
     %% valgrind needs a lot of time
+    [{timetrap,{minutes,10}}];
+group(reference_jump) ->
+    %% valgrind needs a lot of time
     [{timetrap,{minutes,10}}].
 
 %% A simple helper to test without test_server during dev
