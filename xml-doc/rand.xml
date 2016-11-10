@@ -42,7 +42,10 @@
       <url href="http://www.jstatsoft.org/v05/i08">Ziggurat Method by Marsaglia
       and Tsang</url>.</p>
     <p>For some algorithms, jump functions are provided for generating
-       non-overlapping sequences for parallel computations.</p>
+        non-overlapping sequences for parallel computations.
+        The jump functions perform calculations
+        equivalent to perform a large number of repeated calls
+        for calculating new states. </p>
 
     <p>The following algorithms are provided:</p>
 
@@ -161,12 +164,26 @@ S0 = rand:seed_s(exsplus),
     </func>
 
     <func>
+      <name name="jump" arity="0"/>
+      <fsummary>Return the seed after performing jump calculation
+          to the state in the process dictionary.</fsummary>
+      <desc><marker id="jump-0" />
+          <p>Returns the state
+              after performing jump calculation
+              to the state in the process dictionary.</p>
+      <p>This function generates a <c>not_implemented</c> error exception
+           when the jump function is not implemented for
+           the algorithm specified in the state
+           in the process dictionary.</p>
+      </desc>
+    </func>
+
+    <func>
       <name name="jump" arity="1"/>
       <fsummary>Return the seed after performing jump calculation.</fsummary>
       <desc><marker id="jump-1" />
-        <p>Returns the state after performing jump calculation,
-          which is equivalent to perform a large number of calls
-          of calculating new states. </p>
+          <p>Returns the state after performing jump calculation
+              to the given state. </p>
       <p>This function generates a <c>not_implemented</c> error exception
            when the jump function is not implemented for
            the algorithm specified in the state.</p>
