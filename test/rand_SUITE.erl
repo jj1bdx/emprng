@@ -438,7 +438,7 @@ reference_jump(Config) when is_list(Config) ->
 
 reference_jump_1(Alg) ->
     Refval  = reference_jump_val(Alg),
-    Testval = gen_jump(Alg),
+    Testval = gen_jump_1(Alg),
     case Refval =:= Testval of
         true -> ok;
         false ->
@@ -448,7 +448,7 @@ reference_jump_1(Alg) ->
 	    exit(wrong_value)
     end.
 
-gen_jump(Algo) ->
+gen_jump_1(Algo) ->
     Seed = case Algo of
 	       exsplus -> %% Printed with orig 'C' code and this seed
 		   rand:seed_s({exsplus, [12345678|12345678]});
@@ -464,17 +464,17 @@ gen_jump(Algo) ->
 	   end,
     case Seed of
         not_implemented -> [not_implemented];
-        S -> gen_jump(?LOOP_JUMP, S, [])
+        S -> gen_jump_1(?LOOP_JUMP, S, [])
     end.
 
-gen_jump(N, State0 = {#{max:=Max}, _}, Acc) when N > 0 ->
+gen_jump_1(N, State0 = {#{max:=Max}, _}, Acc) when N > 0 ->
     {_, State1} = rand:uniform_s(Max, State0),
     {Random, State2} = rand:uniform_s(Max, rand:jump(State1)),
     case N rem (?LOOP_JUMP div 100) of
-	0 -> gen_jump(N-1, State2, [Random|Acc]);
-	_ -> gen_jump(N-1, State2, Acc)
+	0 -> gen_jump_1(N-1, State2, [Random|Acc]);
+	_ -> gen_jump_1(N-1, State2, Acc)
     end;
-gen_jump(_, _, Acc) -> lists:reverse(Acc).
+gen_jump_1(_, _, Acc) -> lists:reverse(Acc).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Data
