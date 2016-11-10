@@ -83,9 +83,7 @@ export_seed_s({#{type:=Alg}, Seed}) -> {Alg, Seed}.
 
 -spec seed(AlgOrExpState::alg() | export_state()) -> state().
 seed(Alg) ->
-    R = seed_s(Alg),
-    _ = seed_put(R),
-    R.
+    seed_put(seed_s(Alg)).
 
 -spec seed_s(AlgOrExpState::alg() | export_state()) -> state().
 seed_s(Alg) when is_atom(Alg) ->
@@ -101,9 +99,7 @@ seed_s({Alg0, Seed}) ->
 
 -spec seed(Alg :: alg(), {integer(), integer(), integer()}) -> state().
 seed(Alg0, S0) ->
-    State = seed_s(Alg0, S0),
-    _ = seed_put(State),
-    State.
+    seed_put(seed_s(Alg0, S0)).
 
 -spec seed_s(Alg :: alg(), {integer(), integer(), integer()}) -> state().
 seed_s(Alg0, S0 = {_, _, _}) ->
@@ -215,9 +211,10 @@ normal_s(State0) ->
 -type uint64() :: 0..16#ffffffffffffffff.
 -type uint58() :: 0..16#03ffffffffffffff.
 
--spec seed_put(state()) -> undefined | state().
+-spec seed_put(state()) -> state().
 seed_put(Seed) ->
-    put(?SEED_DICT, Seed).
+    put(?SEED_DICT, Seed),
+    Seed.
 
 seed_get() ->
     case get(?SEED_DICT) of
