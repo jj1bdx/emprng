@@ -167,7 +167,7 @@ jump(State = {#{jump:=Jump}, _}) ->
 -spec jump() -> {NewS :: state()}.
 
 jump() ->
-	seed(export_seed_s(jump(seed(export_seed())))).
+    seed_put(jump(seed_get())).
 
 %% normal/0: returns a random float with standard normal distribution
 %% updating the state in the process dictionary.
