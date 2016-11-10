@@ -24,7 +24,8 @@
          api_eq/1, reference/1,
 	 basic_stats_uniform_1/1, basic_stats_uniform_2/1,
 	 basic_stats_normal/1,
-	 plugin/1, measure/1, reference_jump/1]).
+	 plugin/1, measure/1,
+	 reference_jump_state/1, reference_jump_procdict/1]).
 
 -export([test/0, gen/1]).
 
@@ -42,12 +43,14 @@ all() ->
      reference,
      {group, basic_stats},
      plugin, measure,
-     reference_jump
+     {group, reference_jump}
     ].
 
 groups() ->
     [{basic_stats, [parallel],
-      [basic_stats_uniform_1, basic_stats_uniform_2, basic_stats_normal]}].
+      [basic_stats_uniform_1, basic_stats_uniform_2, basic_stats_normal]},
+     {reference_jump, [parallel],
+      [reference_jump_state, reference_jump_procdict]}].
 
 %% A simple helper to test without test_server during dev
 test() ->
@@ -428,11 +431,16 @@ measure_2(N, State0, Fun) when N > 0 ->
 measure_2(0, _, _) -> ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% The jump sequence tests has two parts
+%% for those with the functional API (jump/1)
+%% and for those with the internal state
+%% in process dictionary (jump/0).
 
 -define(LOOP_JUMP, (?LOOP div 1000)).
 
-%% Check if each algorithm generates the proper jump sequence.
-reference_jump(Config) when is_list(Config) ->
+%% Check if each algorithm generates the proper jump sequence
+%% with the functional API.
+reference_jump_state(Config) when is_list(Config) ->
     [reference_jump_1(Alg) || Alg <- algs()],
     ok.
 
@@ -475,6 +483,58 @@ gen_jump_1(N, State0 = {#{max:=Max}, _}, Acc) when N > 0 ->
 	_ -> gen_jump_1(N-1, State2, Acc)
     end;
 gen_jump_1(_, _, Acc) -> lists:reverse(Acc).
+
+%% Check if each algorithm generates the proper jump sequence
+%% with the internal state in the process dictionary.
+reference_jump_procdict(Config) when is_list(Config) ->
+    [reference_jump_0(Alg) || Alg <- algs()],
+    ok.
+
+reference_jump_0(Alg) ->
+    Refval  = reference_jump_val(Alg),
+    Testval = gen_jump_0(Alg),
+    case Refval =:= Testval of
+        true -> ok;
+        false ->
+	    io:format("Failed: ~p~n",[Alg]),
+	    io:format("Length ~p ~p~n",[length(Refval), length(Testval)]),
+	    io:format("Head ~p ~p~n",[hd(Refval), hd(Testval)]),
+	    exit(wrong_value)
+    end.
+
+gen_jump_0(Algo) ->
+    Seed = case Algo of
+	       exsplus -> %% Printed with orig 'C' code and this seed
+		   rand:seed({exsplus, [12345678|12345678]});
+	       exs1024 -> %% Printed with orig 'C' code and this seed
+		   rand:seed({exs1024, {lists:duplicate(16, 12345678), []}});
+	       exs64 -> %% Test exception of not_implemented notice
+	       try
+               _ = rand:seed(exs64),
+               rand:jump()
+	       catch
+	            error:not_implemented -> not_implemented
+	       end;
+	       _ -> % unimplemented
+		   not_implemented
+	   end,
+    case Seed of
+        not_implemented -> [not_implemented];
+        S ->
+            {Seedmap=#{}, _} = S,
+            Max = maps:get(max, Seedmap),
+            gen_jump_0(?LOOP_JUMP, Max, [])
+    end.
+
+gen_jump_0(N, Max, Acc) when N > 0 ->
+    _ = rand:uniform(Max),
+    _ = rand:jump(),
+    Random = rand:uniform(Max),
+    case N rem (?LOOP_JUMP div 100) of
+	0 -> gen_jump_0(N-1, Max, [Random|Acc]);
+	_ -> gen_jump_0(N-1, Max, Acc)
+    end;
+gen_jump_0(_, _, Acc) -> lists:reverse(Acc).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Data
