@@ -65,7 +65,10 @@
       <span class="bold_code"><a href="http://www.jstatsoft.org/v05/i08">Ziggurat Method by Marsaglia
       and Tsang</a></span>.</p>
     <p>For some algorithms, jump functions are provided for generating
-       non-overlapping sequences for parallel computations.</p>
+        non-overlapping sequences for parallel computations.
+        The jump functions perform calculations
+        equivalent to perform a large number of repeated calls
+        for calculating new states. </p>
 
     <p>The following algorithms are provided:</p>
 
@@ -175,12 +178,22 @@ S0 = rand:seed_s(exsplus),
           To be used with <span class="bold_code"><a href="#seed-1"><span class="code">seed/1</span></a></span>.</p>
       </p></div>
 
+    <p><a name="jump-0"></a><span class="bold_code">jump() -&gt; {NewS :: <span class="bold_code"><a href="#type-state">state()</a></span>}</span><br></p>
+<div class="REFBODY"><p><a name="jump-0"></a>
+          <p>Returns the state
+              after performing jump calculation
+              to the state in the process dictionary.</p>
+      <p>This function generates a <span class="code">not_implemented</span> error exception
+           when the jump function is not implemented for
+           the algorithm specified in the state
+           in the process dictionary.</p>
+      </p></div>
+
     <p><a name="jump-1"></a><span class="bold_code">jump(State :: <span class="bold_code"><a href="#type-state">state()</a></span>) -&gt; {NewS :: <span class="bold_code"><a href="#type-state">state()</a></span>}</span><br></p>
 <div class="REFBODY"><p><a name="jump-1"></a>
-        <p>Returns the state after performing jump calculation,
-          which is equivalent to perform a large number of calls
-          of calculating new states. </p>
-        <p>This function returns <span class="code">not_implemented</span> error
+          <p>Returns the state after performing jump calculation
+              to the given state. </p>
+      <p>This function generates a <span class="code">not_implemented</span> error exception
            when the jump function is not implemented for
            the algorithm specified in the state.</p>
       </p></div>
