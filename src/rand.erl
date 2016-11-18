@@ -324,21 +324,13 @@ exsplus_uniform(Max, {Alg, R}) ->
 -define(JUMPELEMLEN, 58).
 
 -dialyzer({no_improper_lists, exsplus_jump/1}).
-
--spec exsplus_jump({alg(), exsplus_state()}) ->
-    {alg(), exsplus_state()}.
-
+-spec exsplus_jump(state()) -> state().
 exsplus_jump({Alg, S}) ->
     {S1, AS1} = exsplus_jump(S, [0|0], ?JUMPCONST1, ?JUMPELEMLEN),
     {_,  AS2} = exsplus_jump(S1, AS1,  ?JUMPCONST2, ?JUMPELEMLEN),
     {Alg, AS2}.
 
 -dialyzer({no_improper_lists, exsplus_jump/4}).
-
--spec exsplus_jump(exsplus_state(), exsplus_state(),
-    non_neg_integer(), non_neg_integer()) ->
-    {exsplus_state(), exsplus_state()}.
-
 exsplus_jump(S, AS, _, 0) ->
     {S, AS};
 exsplus_jump(S, [AS0|AS1], J, N) ->
@@ -437,7 +429,7 @@ exs1024_uniform(Max, {Alg, R}) ->
 -define(JUMPTOTALLEN, 1024).
 -define(RINGLEN, 16).
 
--spec exs1024_jump({alg(), exs1024_state()}) -> {alg(), exs1024_state()}.
+-spec exs1024_jump(state()) -> state().
 
 exs1024_jump({Alg, {L, RL}}) ->
     P = length(RL),
@@ -446,10 +438,6 @@ exs1024_jump({Alg, {L, RL}}) ->
          ?JUMPCONSTTAIL, ?JUMPCONSTHEAD, ?JUMPELEMLEN, ?JUMPTOTALLEN),
     {ASL, ASR} = lists:split(?RINGLEN - P, AS),
     {Alg, {ASL, lists:reverse(ASR)}}.
-
--spec exs1024_jump(exs1024_state(), list(non_neg_integer()),
-         list(non_neg_integer()), non_neg_integer(),
-         non_neg_integer(), non_neg_integer()) -> list(non_neg_integer()).
 
 exs1024_jump(_, AS, _, _, _, 0) ->
     AS;
