@@ -12,3 +12,8 @@ ERLC_OPTS = -Werror +debug_info +warn_export_all +warn_export_vars \
 DIALYZER_OPTS = -Wrace_conditions -Wunmatched_returns
 
 include erlang.mk
+
+html-doc: xml-doc/rand.html
+
+xml-doc/rand.html: xml-doc/rand.xml
+	sh -c 'cd xml-doc && sh ./docgen.sh'
