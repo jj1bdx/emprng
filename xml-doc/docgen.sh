@@ -16,7 +16,7 @@ xsltproc --noout --stringparam outdir . \
     --stringparam pdfname pdfname \
     --stringparam gendate "${DATE}" \
     --stringparam appname emprng \
-    --stringparam appver 0.9.1 \
+    --stringparam appver 0.9.2 \
     -path ${ERLDOCGENLIB}/priv/dtd \
     -path ${ERLDOCGENLIB}/priv/dtd_html_entities \
     ${ERLDOCGENLIB}/priv/xsl/db_html.xsl \

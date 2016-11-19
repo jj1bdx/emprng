@@ -14,6 +14,11 @@
 
 * `rand.xml`: OTP `rand` manual (`lib/stdlib/doc/src/rand.xml`)
 
+## Other directories
+
+* `c-example/`: C code for calculating Xorshift\*/+ test values
+* `test-scripts`: Erlang escript code for verifying Xorshift\*/+ test values
+
 ## License
 
 * See individual files for the license details
@@ -21,7 +26,7 @@
 
 ## Version
 
-* 0.9.1
+* 0.9.2
 * See the Git tag for the details
 
 ## Requirements
@@ -37,7 +42,6 @@
     make            # Compile BEAM files
     make tests      # Run Common Test cases
     make dialyze    # check specs
-    make html-doc   # builds xml-doc/rand.xml
 
 ## Current goals
 
