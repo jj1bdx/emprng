@@ -31,6 +31,14 @@
 * (Use tag `0.4.0` to retrieve the last code for OTP 18.x)
 * (Use tag `0.5.0` to retrieve the last code for OTP 19.0.x)
 
+## How to build
+
+    make distclean  # Total cleanup
+    make            # Compile BEAM files
+    make tests      # Run Common Test cases
+    make dialyze    # check specs
+    make html-doc   # builds xml-doc/rand.xml
+
 ## Current goals
 
 * Bugfix
