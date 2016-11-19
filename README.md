@@ -21,7 +21,7 @@
 
 ## Version
 
-* 0.8.4
+* 0.9.0
 * See the Git tag for the details
 
 ## Requirements
