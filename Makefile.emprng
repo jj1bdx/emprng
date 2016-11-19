@@ -13,7 +13,14 @@ DIALYZER_OPTS = -Wrace_conditions -Wunmatched_returns
 
 include erlang.mk
 
+all:: html-doc
+
 html-doc: xml-doc/rand.html
 
 xml-doc/rand.html: xml-doc/rand.xml xml-doc/docgen.sh
-	sh -c 'cd xml-doc && sh ./docgen.sh'
+	$(gen_verbose) sh -c 'cd xml-doc && sh ./docgen.sh'
+
+distclean:: distclean-html-doc
+
+distclean-html-doc:
+	$(gen_verbose) rm -f ./xml-doc/rand.html
