@@ -15,5 +15,5 @@ include erlang.mk
 
 html-doc: xml-doc/rand.html
 
-xml-doc/rand.html: xml-doc/rand.xml
+xml-doc/rand.html: xml-doc/rand.xml xml-doc/docgen.sh
 	sh -c 'cd xml-doc && sh ./docgen.sh'
