@@ -1,4 +1,6 @@
-# Building Erlang/OTP-style doc for emprng for quick review
+# Building Erlang/OTP-style doc for emprng for quick review 
+
+*Note: HTML result created in this directory is based on the old style (OTP 19 and before) building script and no longer applicable to the new style (OTP 20 and later).*
 
 ## How to edit
 
