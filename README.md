@@ -80,9 +80,15 @@ Refer to the Erlang/OTP rand module manual for the further details of the availa
 Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers to
 the OTP random module, including the code review, various ideas,
 implementations, pieces of code for `rand.erl` and `rand_SUITE.erl`, and
-comments. Dan has committed a lot of new code between OTP 19 to 20.
+comments.
 
-Thanks to Sebastiano Vigna for providing xorshift116+ and xoroshift116+
+Thanks to Guilherme Andrade for adding cryptographically strong rand plugins
+and other contributions.
+ 
+Thanks to Raimo Niskanen for adding xoroshiro116+, supervising the code for
+OTP 20, and other contributions.
+
+Thanks to Sebastiano Vigna for providing xorshift116+ and xoroshiro116+
 algorithms.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
