@@ -67,7 +67,9 @@ Dan Gudmundsson has made significant improvements and changes between OTP 19 and
 
 * NIFs (maybe a future goal, rand.erl is already capable to handle arbitrary functions/modules)
 
-## Available PRNGs
+## PRNGs available as external modules
+
+Refer to the Erlang/OTP rand module manual for the further details of the available algorithms.
 
 * [exsplus116](https://github.com/jj1bdx/exsplus116/) (Xorshift116+, default PRNG) (the original exsplus was Xorshift128+) (exsplus116 is available since 0.4.0)
 * [exs64](https://github.com/jj1bdx/exs64/) (Xorshift64\*)
@@ -77,12 +79,16 @@ Dan Gudmundsson has made significant improvements and changes between OTP 19 and
 
 Thanks to Dan Gudmundsson for the idea of allowing multiple PRNG handlers to
 the OTP random module, including the code review, various ideas,
-implementations, pieces of code for `rand.erl`, and comments.
+implementations, pieces of code for `rand.erl` and `rand_SUITE.erl`, and
+comments. Dan has committed a lot of new code between OTP 19 to 20.
 
-Thanks to Sebastiano Vigna for providing xorshift116+ algorithm.
+Thanks to Sebastiano Vigna for providing xorshift116+ and xoroshift116+
+algorithms.
 
 Thanks to Mutsuo Saito and Makoto Matsumoto, the SFMT and TinyMT authors, for
-allowing redistribution of sfmt-erlang and tinymt-erlang under
-Erlang Public License.
+allowing redistribution of sfmt-erlang and tinymt-erlang under Erlang Public
+License.
 
-Thanks to Erlang Solutions for giving me the talk about this repository at Erlang Factory SF Bay Area 2015 and Erlang User Conference 2016.
+Thanks to Erlang Solutions for giving me the talk about this repository at
+Erlang Factory SF Bay Area 2015, Erlang User Conference 2016, and Erlang and
+Elixir Factory SF Bay Area 2017.
