@@ -1,5 +1,11 @@
 # emprng: an Erlang/OTP Multiple PRNG suite aka rand module
 
+## Note well: no further development
+
+No further development after Version 1.0.0 (as in OTP 20) in this repository.
+
+Dan Gudmundsson has made significant improvements and changes between OTP 19 and 20. Refer to Erlang/OTP official source code for the further details.
+
 ## Target files
 
 ### Under `src/`
@@ -26,15 +32,16 @@
 
 ## Version
 
-* 0.9.2
+* 1.0.0
 * See the Git tag for the details
 
 ## Requirements
 
-* Erlang/OTP 19.1 and later
+* Erlang/OTP 20
 * (Use tag `0.2.1` to retrieve the last code for OTP 17.x)
 * (Use tag `0.4.0` to retrieve the last code for OTP 18.x)
 * (Use tag `0.5.0` to retrieve the last code for OTP 19.0.x)
+* (Use tag `0.9.2` to retrieve the last code for OTP 19.3.x)
 
 ## How to build
 
